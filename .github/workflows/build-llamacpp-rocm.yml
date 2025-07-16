@@ -25,6 +25,28 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Clean up existing directories (safety precaution)
+      run: |
+        # Remove existing llama.cpp directory if it exists
+        if (Test-Path "llama.cpp") {
+          Write-Host "Removing existing llama.cpp directory..."
+          Remove-Item -Recurse -Force "llama.cpp"
+        }
+        
+        # Remove existing C:\opt\rocm directory if it exists
+        if (Test-Path "C:\opt\rocm") {
+          Write-Host "Removing existing C:\opt\rocm directory..."
+          Remove-Item -Recurse -Force "C:\opt\rocm"
+        }
+        
+        # Remove any existing ROCm tarball
+        if (Test-Path "rocm.tar.gz") {
+          Write-Host "Removing existing rocm.tar.gz..."
+          Remove-Item -Force "rocm.tar.gz"
+        }
+        
+        Write-Host "Cleanup completed successfully"
+      
     - name: Setup Chocolatey
       uses: cmaurice/install-chocolatey@v1.0.0
       
@@ -149,4 +171,35 @@ jobs:
       with:
         name: build-summary
         path: build-summary.md
-        retention-days: 30 
+        retention-days: 30
+        
+    - name: Clean up build artifacts and temporary files
+      if: always()
+      run: |
+        Write-Host "Starting cleanup process..."
+        
+        # Remove ROCm tarball
+        if (Test-Path "rocm.tar.gz") {
+          Write-Host "Removing rocm.tar.gz..."
+          Remove-Item -Force "rocm.tar.gz"
+        }
+        
+        # Remove ROCm installation directory
+        if (Test-Path "C:\opt\rocm") {
+          Write-Host "Removing C:\opt\rocm directory..."
+          Remove-Item -Recurse -Force "C:\opt\rocm"
+        }
+        
+        # Remove llama.cpp source directory (keeping only the build artifacts)
+        if (Test-Path "llama.cpp") {
+          Write-Host "Removing llama.cpp source directory..."
+          Remove-Item -Recurse -Force "llama.cpp"
+        }
+        
+        # Clean up any temporary build files
+        if (Test-Path "build-summary.md") {
+          Write-Host "Removing build-summary.md..."
+          Remove-Item -Force "build-summary.md"
+        }
+        
+        Write-Host "Cleanup completed successfully" 
