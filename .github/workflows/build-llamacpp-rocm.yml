@@ -79,11 +79,6 @@ jobs:
         # Extract the tarball
         tar -xzf rocm.tar.gz -C C:\opt\rocm --strip-components=1
         
-    - name: Add ROCm to PATH
-      run: |
-        $env:PATH = "C:\opt\rocm\lib\llvm\bin;$env:PATH"
-        echo "C:\opt\rocm\lib\llvm\bin" >> $env:GITHUB_PATH
-        
     - name: Clone llama.cpp
       run: |
         git clone https://github.com/ggerganov/llama.cpp.git
@@ -102,15 +97,14 @@ jobs:
           Write-Host "Warning: $hipFile not found"
         }
         
-    - name: Setup build environment
-      run: |
-        $env:HIP_PATH = "C:/opt/rocm"
-        $env:PATH = "$env:HIP_PATH\bin;$env:PATH"
-        $env:HIP_PLATFORM = "amd"
-        
     - name: Build Llama.cpp + ROCm
       shell: cmd
       run: |
+
+        # Set up environment variables and PATH
+        set HIP_PATH=C:\opt\rocm
+        set HIP_PLATFORM=amd
+        set PATH=%HIP_PATH%\lib\llvm\bin;%HIP_PATH%\bin;%PATH%
 
         # Set up x64 Native Tools Command Prompt environment
         call "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt
