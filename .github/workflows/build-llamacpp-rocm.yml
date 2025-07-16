@@ -136,18 +136,25 @@ jobs:
         echo "C:/opt/rocm/bin" >> $env:GITHUB_PATH
         
     - name: Build Llama.cpp + ROCm
+      shell: cmd
       run: |
         cd llama.cpp
         mkdir build
         cd build
         
-        # Load cmake configuration from environment variable
-        $cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json
+        # Set up x64 Native Tools Command Prompt environment
+        call "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt
+        set /p VS_PATH=<vs_path.txt
+        call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
         
-        # Execute cmake with the configuration
-        cmake .. @cmakeConfig
+        # Load cmake configuration from environment variable and write to file for cmake @ syntax
+        powershell -Command "$cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json; $cmakeConfig | Out-File -FilePath cmake_args.txt -Encoding ASCII"
         
-        cmake --build . -j $env:NUMBER_OF_PROCESSORS
+        # Execute cmake with the configuration using @ syntax
+        cmake .. @cmake_args.txt
+        
+        # Build the project
+        cmake --build . -j %NUMBER_OF_PROCESSORS%
         
     - name: List build artifacts
       run: |
