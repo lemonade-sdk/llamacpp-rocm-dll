@@ -1,5 +1,4 @@
-name: Build Llama.cpp + ROCm for STX Halo
-
+name: Build Llama.cpp + ROCm
 on:
   workflow_dispatch:
     inputs:
