@@ -22,6 +22,33 @@ jobs:
     runs-on: windows-latest
     
     steps:
+    - name: Setup cmake configuration
+      run: |
+        # Define cmake configuration once for reuse across steps
+        $cmakeConfig = @(
+          "-G", "Ninja",
+          "-DCMAKE_C_COMPILER=`"C:\opt\rocm\lib\llvm\bin\clang.exe`"",
+          "-DCMAKE_CXX_COMPILER=`"C:\opt\rocm\lib\llvm\bin\clang++.exe`"",
+          "-DCMAKE_CROSSCOMPILING=ON",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DAMDGPU_TARGETS=`"${{ env.AMDGPU_TARGETS }}`"",
+          "-DBUILD_SHARED_LIBS=ON",
+          "-DLLAMA_BUILD_TESTS=OFF",
+          "-DGGML_HIP=ON",
+          "-DGGML_OPENMP=OFF",
+          "-DGGML_CUDA_FORCE_CUBLAS=OFF",
+          "-DGGML_HIP_ROCWMMA_FATTN=OFF",
+          "-DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF",
+          "-DLLAMA_CURL=OFF",
+          "-DGGML_NATIVE=OFF",
+          "-DGGML_STATIC=OFF",
+          "-DCMAKE_SYSTEM_NAME=Windows"
+        )
+        
+        # Save to environment variable for other steps to use
+        $cmakeConfigJson = $cmakeConfig | ConvertTo-Json -Compress
+        echo "CMAKE_CONFIG=$cmakeConfigJson" >> $env:GITHUB_ENV
+        
     - name: Checkout repository
       uses: actions/checkout@v4
       
@@ -114,24 +141,12 @@ jobs:
         mkdir build
         cd build
         
-        cmake .. -G Ninja `
-          -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" `
-          -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" `
-          -DCMAKE_CROSSCOMPILING=ON `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" `
-          -DBUILD_SHARED_LIBS=ON `
-          -DLLAMA_BUILD_TESTS=OFF `
-          -DGGML_HIP=ON `
-          -DGGML_OPENMP=OFF `
-          -DGGML_CUDA_FORCE_CUBLAS=OFF `
-          -DGGML_HIP_ROCWMMA_FATTN=OFF `
-          -DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF `
-          -DLLAMA_CURL=OFF `
-          -DGGML_NATIVE=OFF `
-          -DGGML_STATIC=OFF `
-          -DCMAKE_SYSTEM_NAME=Windows
-          
+        # Load cmake configuration from environment variable
+        $cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json
+        
+        # Execute cmake with the configuration
+        cmake .. @cmakeConfig
+        
         cmake --build . -j $env:NUMBER_OF_PROCESSORS
         
     - name: List build artifacts
@@ -148,6 +163,11 @@ jobs:
         
     - name: Create release summary
       run: |
+        # Load cmake configuration from environment variable
+        $cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json
+        
+        $cmakeCommand = "cmake .. " + ($cmakeConfig -join " ")
+        
         $summary = @"
         # Llama.cpp + ROCm Build Summary
         
@@ -162,7 +182,7 @@ jobs:
         
         ## Build Commands Used
         ```bash
-        cmake .. -G Ninja -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" -DCMAKE_CROSSCOMPILING=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" -DBUILD_SHARED_LIBS=ON -DLLAMA_BUILD_TESTS=OFF -DGGML_HIP=ON -DGGML_OPENMP=OFF -DGGML_CUDA_FORCE_CUBLAS=OFF -DGGML_HIP_ROCWMMA_FATTN=OFF -DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_STATIC=OFF -DCMAKE_SYSTEM_NAME=Windows
+        $cmakeCommand
         cmake --build . -j $env:NUMBER_OF_PROCESSORS
         ```
         "@
