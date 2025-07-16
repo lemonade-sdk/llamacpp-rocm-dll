@@ -1,0 +1,153 @@
+name: Build Llama.cpp + ROCm for STX Halo
+
+on:
+  workflow_dispatch:
+    inputs:
+      rocm_version:
+        description: 'ROCm version to use (e.g., 7.0.0rc20250711)'
+        required: false
+        default: '7.0.0rc20250711'
+      gfx_target:
+        description: 'AMD GPU target (e.g., gfx1151)'
+        required: false
+        default: 'gfx1151'
+
+env:
+  HIP_PATH: C:/opt/rocm
+  HIP_PLATFORM: amd
+  AMDGPU_TARGETS: ${{ github.event.inputs.gfx_target || 'gfx1151' }}
+  ROCM_VERSION: ${{ github.event.inputs.rocm_version || '7.0.0rc20250711' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Chocolatey
+      uses: cmaurice/install-chocolatey@v1.0.0
+      
+    - name: Install Visual Studio Build Tools
+      run: |
+        choco install visualstudio2022buildtools -y --params "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+        
+    - name: Install build dependencies
+      run: |
+        choco install cmake --version=3.31.0 -y
+        choco install ninja -y
+        choco install ccache -y
+        choco install python -y
+        choco install strawberryperl -y
+        
+    - name: Download ROCm nightly tarball
+      run: |
+        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-${{ env.AMDGPU_TARGETS }}-${{ env.ROCM_VERSION }}.tar.gz"
+        Write-Host "Downloading ROCm from: $rocmUrl"
+        Invoke-WebRequest -Uri $rocmUrl -OutFile "rocm.tar.gz"
+        
+    - name: Extract ROCm to C:\opt\rocm
+      run: |
+        # Create directory if it doesn't exist
+        New-Item -ItemType Directory -Force -Path "C:\opt\rocm"
+        
+        # Extract the tarball
+        tar -xzf rocm.tar.gz -C C:\opt\rocm --strip-components=1
+        
+    - name: Add ROCm to PATH
+      run: |
+        $env:PATH = "C:\opt\rocm\lib\llvm\bin;$env:PATH"
+        echo "C:\opt\rocm\lib\llvm\bin" >> $env:GITHUB_PATH
+        
+    - name: Clone llama.cpp
+      run: |
+        git clone https://github.com/ggerganov/llama.cpp.git
+        cd llama.cpp
+        
+    - name: Update HIP version check
+      run: |
+        cd llama.cpp
+        $hipFile = "ggml\src\ggml-cuda\vendors\hip.h"
+        if (Test-Path $hipFile) {
+          $content = Get-Content $hipFile -Raw
+          $updatedContent = $content -replace 'HIP_VERSION >= 70000000', 'HIP_VERSION >= 50600000'
+          Set-Content $hipFile $updatedContent -NoNewline
+          Write-Host "Updated HIP version check in $hipFile"
+        } else {
+          Write-Host "Warning: $hipFile not found"
+        }
+        
+    - name: Setup build environment
+      run: |
+        $env:HIP_PATH = "C:/opt/rocm"
+        $env:PATH = "$env:HIP_PATH\bin;$env:PATH"
+        $env:HIP_PLATFORM = "amd"
+        
+    - name: Build Llama.cpp + ROCm
+      run: |
+        cd llama.cpp
+        mkdir build
+        cd build
+        
+        cmake .. -G Ninja `
+          -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" `
+          -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" `
+          -DCMAKE_CROSSCOMPILING=ON `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" `
+          -DBUILD_SHARED_LIBS=ON `
+          -DLLAMA_BUILD_TESTS=OFF `
+          -DGGML_HIP=ON `
+          -DGGML_OPENMP=OFF `
+          -DGGML_CUDA_FORCE_CUBLAS=OFF `
+          -DGGML_HIP_ROCWMMA_FATTN=OFF `
+          -DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF `
+          -DLLAMA_CURL=OFF `
+          -DGGML_NATIVE=OFF `
+          -DGGML_STATIC=OFF `
+          -DCMAKE_SYSTEM_NAME=Windows
+          
+        cmake --build . -j $env:NUMBER_OF_PROCESSORS
+        
+    - name: List build artifacts
+      run: |
+        cd llama.cpp\build\bin
+        Get-ChildItem -Recurse | Format-Table Name, Length, LastWriteTime
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: llamacpp-rocm-build-${{ env.AMDGPU_TARGETS }}-${{ env.ROCM_VERSION }}
+        path: llama.cpp/build/bin/
+        retention-days: 30
+        
+    - name: Create release summary
+      run: |
+        $summary = @"
+        # Llama.cpp + ROCm Build Summary
+        
+        ## Build Configuration
+        - **GPU Target**: ${{ env.AMDGPU_TARGETS }}
+        - **ROCm Version**: ${{ env.ROCM_VERSION }}
+        - **Build Type**: Release
+        - **Platform**: Windows
+        
+        ## Build Artifacts
+        The compiled binaries are available in the build artifacts.
+        
+        ## Build Commands Used
+        ```bash
+        cmake .. -G Ninja -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" -DCMAKE_CROSSCOMPILING=ON -DCMAKE_BUILD_TYPE=Release -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" -DBUILD_SHARED_LIBS=ON -DLLAMA_BUILD_TESTS=OFF -DGGML_HIP=ON -DGGML_OPENMP=OFF -DGGML_CUDA_FORCE_CUBLAS=OFF -DGGML_HIP_ROCWMMA_FATTN=OFF -DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_STATIC=OFF -DCMAKE_SYSTEM_NAME=Windows
+        cmake --build . -j $env:NUMBER_OF_PROCESSORS
+        ```
+        "@
+        
+        Set-Content -Path "build-summary.md" -Value $summary
+        
+    - name: Upload build summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-summary
+        path: build-summary.md
+        retention-days: 30 
