@@ -131,9 +131,9 @@ jobs:
         
     - name: Setup build environment
       run: |
-        $env:HIP_PATH = "C:/opt/rocm"
-        $env:PATH = "$env:HIP_PATH\bin;$env:PATH"
-        $env:HIP_PLATFORM = "amd"
+        echo "HIP_PATH=C:/opt/rocm" >> $env:GITHUB_ENV
+        echo "HIP_PLATFORM=amd" >> $env:GITHUB_ENV
+        echo "C:/opt/rocm/bin" >> $env:GITHUB_PATH
         
     - name: Build Llama.cpp + ROCm
       run: |
