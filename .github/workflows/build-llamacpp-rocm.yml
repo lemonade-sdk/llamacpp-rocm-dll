@@ -82,7 +82,6 @@ jobs:
     - name: Clone llama.cpp
       run: |
         git clone https://github.com/ggerganov/llama.cpp.git
-        cd llama.cpp
         
     - name: Update HIP version check
       run: |
@@ -101,21 +100,22 @@ jobs:
       shell: cmd
       run: |
 
-        # Set up environment variables and PATH
+        REM Set up environment variables and PATH
         set HIP_PATH=C:\opt\rocm
         set HIP_PLATFORM=amd
         set PATH=%HIP_PATH%\lib\llvm\bin;%HIP_PATH%\bin;%PATH%
 
-        # Set up x64 Native Tools Command Prompt environment
+        REM Set up x64 Native Tools Command Prompt environment
         call "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt
         set /p VS_PATH=<vs_path.txt
         call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
 
-        # Create build directory
+        REM Create build directory
+        cd llama.cpp
         mkdir build
         cd build
 
-        # Configure the project
+        REM Configure the project
         cmake .. -G Ninja ^
           -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" ^
           -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" ^
@@ -134,7 +134,7 @@ jobs:
           -DGGML_STATIC=OFF ^
           -DCMAKE_SYSTEM_NAME=Windows
 
-        # Build the project
+        REM Build the project
         cmake --build . -j %NUMBER_OF_PROCESSORS%
         
     - name: List build artifacts
