@@ -48,7 +48,10 @@ jobs:
         Write-Host "Cleanup completed successfully"
       
     - name: Setup Chocolatey
-      uses: cmaurice/install-chocolatey@v1.0.0
+      run: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force;
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
       
     - name: Install Visual Studio Build Tools
       run: |
@@ -189,7 +192,7 @@ jobs:
           Write-Host "Removing C:\opt\rocm directory..."
           Remove-Item -Recurse -Force "C:\opt\rocm"
         }
-        
+
         # Remove llama.cpp source directory (keeping only the build artifacts)
         if (Test-Path "llama.cpp") {
           Write-Host "Removing llama.cpp source directory..."
