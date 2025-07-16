@@ -22,33 +22,6 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - name: Setup cmake configuration
-      run: |
-        # Define cmake configuration once for reuse across steps
-        $cmakeConfig = @(
-          "-G", "Ninja",
-          "-DCMAKE_C_COMPILER=`"C:\opt\rocm\lib\llvm\bin\clang.exe`"",
-          "-DCMAKE_CXX_COMPILER=`"C:\opt\rocm\lib\llvm\bin\clang++.exe`"",
-          "-DCMAKE_CROSSCOMPILING=ON",
-          "-DCMAKE_BUILD_TYPE=Release",
-          "-DAMDGPU_TARGETS=`"${{ env.AMDGPU_TARGETS }}`"",
-          "-DBUILD_SHARED_LIBS=ON",
-          "-DLLAMA_BUILD_TESTS=OFF",
-          "-DGGML_HIP=ON",
-          "-DGGML_OPENMP=OFF",
-          "-DGGML_CUDA_FORCE_CUBLAS=OFF",
-          "-DGGML_HIP_ROCWMMA_FATTN=OFF",
-          "-DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF",
-          "-DLLAMA_CURL=OFF",
-          "-DGGML_NATIVE=OFF",
-          "-DGGML_STATIC=OFF",
-          "-DCMAKE_SYSTEM_NAME=Windows"
-        )
-        
-        # Save to environment variable for other steps to use
-        $cmakeConfigJson = $cmakeConfig | ConvertTo-Json -Compress
-        echo "CMAKE_CONFIG=$cmakeConfigJson" >> $env:GITHUB_ENV
-        
     - name: Checkout repository
       uses: actions/checkout@v4
       
@@ -131,28 +104,42 @@ jobs:
         
     - name: Setup build environment
       run: |
-        echo "HIP_PATH=C:/opt/rocm" >> $env:GITHUB_ENV
-        echo "HIP_PLATFORM=amd" >> $env:GITHUB_ENV
-        echo "C:/opt/rocm/bin" >> $env:GITHUB_PATH
+        $env:HIP_PATH = "C:/opt/rocm"
+        $env:PATH = "$env:HIP_PATH\bin;$env:PATH"
+        $env:HIP_PLATFORM = "amd"
         
     - name: Build Llama.cpp + ROCm
       shell: cmd
       run: |
-        cd llama.cpp
-        mkdir build
-        cd build
-        
+
         # Set up x64 Native Tools Command Prompt environment
         call "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt
         set /p VS_PATH=<vs_path.txt
         call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
-        
-        # Load cmake configuration from environment variable and write to file for cmake @ syntax
-        powershell -Command "$cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json; $cmakeConfig | Out-File -FilePath cmake_args.txt -Encoding ASCII"
-        
-        # Execute cmake with the configuration using @ syntax
-        cmake .. @cmake_args.txt
-        
+
+        # Create build directory
+        mkdir build
+        cd build
+
+        # Configure the project
+        cmake .. -G Ninja ^
+          -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" ^
+          -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" ^
+          -DCMAKE_CROSSCOMPILING=ON ^
+          -DCMAKE_BUILD_TYPE=Release ^
+          -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" ^
+          -DBUILD_SHARED_LIBS=ON ^
+          -DLLAMA_BUILD_TESTS=OFF ^
+          -DGGML_HIP=ON ^
+          -DGGML_OPENMP=OFF ^
+          -DGGML_CUDA_FORCE_CUBLAS=OFF ^
+          -DGGML_HIP_ROCWMMA_FATTN=OFF ^
+          -DGGML_HIP_FORCE_ROCWMMA_FATTN_GFX12=OFF ^
+          -DLLAMA_CURL=OFF ^
+          -DGGML_NATIVE=OFF ^
+          -DGGML_STATIC=OFF ^
+          -DCMAKE_SYSTEM_NAME=Windows
+
         # Build the project
         cmake --build . -j %NUMBER_OF_PROCESSORS%
         
@@ -170,11 +157,6 @@ jobs:
         
     - name: Create release summary
       run: |
-        # Load cmake configuration from environment variable
-        $cmakeConfig = $env:CMAKE_CONFIG | ConvertFrom-Json
-        
-        $cmakeCommand = "cmake .. " + ($cmakeConfig -join " ")
-        
         $summary = @"
         # Llama.cpp + ROCm Build Summary
         
@@ -186,12 +168,7 @@ jobs:
         
         ## Build Artifacts
         The compiled binaries are available in the build artifacts.
-        
-        ## Build Commands Used
-        ```bash
-        $cmakeCommand
-        cmake --build . -j $env:NUMBER_OF_PROCESSORS
-        ```
+
         "@
         
         Set-Content -Path "build-summary.md" -Value $summary
@@ -219,7 +196,6 @@ jobs:
           Write-Host "Removing C:\opt\rocm directory..."
           Remove-Item -Recurse -Force "C:\opt\rocm"
         }
-
         # Remove llama.cpp source directory (keeping only the build artifacts)
         if (Test-Path "llama.cpp") {
           Write-Host "Removing llama.cpp source directory..."
