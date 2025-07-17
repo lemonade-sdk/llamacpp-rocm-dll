@@ -56,13 +56,6 @@ jobs:
       run: |
         Write-Host "Installing build dependencies using manual methods..."
         
-        # Install CMake manually
-        Write-Host "Installing CMake 3.31.0..."
-        $cmakeUrl = "https://github.com/Kitware/CMake/releases/download/v3.31.0/cmake-3.31.0-windows-x86_64.msi"
-        $cmakePath = "$env:TEMP\cmake-3.31.0-windows-x86_64.msi"
-        Invoke-WebRequest -Uri $cmakeUrl -OutFile $cmakePath
-        Start-Process msiexec.exe -ArgumentList "/i $cmakePath /quiet /norestart" -Wait
-        
         # Install Ninja manually
         Write-Host "Installing Ninja..."
         $ninjaUrl = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
@@ -72,13 +65,6 @@ jobs:
         Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaPath
         Expand-Archive -Path $ninjaPath -DestinationPath $ninjaDir -Force
         
-        # Install Python manually
-        Write-Host "Installing Python 3.11.8..."
-        $pythonUrl = "https://www.python.org/ftp/python/3.11.8/python-3.11.8-amd64.exe"
-        $pythonPath = "$env:TEMP\python-3.11.8-amd64.exe"
-        Invoke-WebRequest -Uri $pythonUrl -OutFile $pythonPath
-        Start-Process -FilePath $pythonPath -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1" -Wait
-        
         # Install Strawberry Perl manually
         Write-Host "Installing Strawberry Perl..."
         $perlUrl = "http://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi"
@@ -86,22 +72,13 @@ jobs:
         Invoke-WebRequest -Uri $perlUrl -OutFile $perlPath
         Start-Process msiexec.exe -ArgumentList "/i $perlPath /quiet /norestart" -Wait
         
-        Write-Host "Manual installation of build dependencies completed"
-        
-    - name: Refresh environment variables
-      run: |
-        # Refresh PATH to include newly installed tools
-        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
-        
-        # Add manual installation paths
-        $env:PATH = "C:\ninja;C:\Program Files\CMake\bin;C:\Program Files\Python311;C:\Program Files\Python311\Scripts;C:\Strawberry\perl\bin;$env:PATH"
-        
         # Verify installations
+        $env:PATH = "C:\ninja;C:\Strawberry\perl\bin;$env:PATH"
         Write-Host "Verifying installations..."
-        cmake --version
         ninja --version
-        python --version
         perl --version
+
+        Write-Host "Manual installation of build dependencies completed"
 
     - name: Install Visual Studio Build Tools
       run: |
