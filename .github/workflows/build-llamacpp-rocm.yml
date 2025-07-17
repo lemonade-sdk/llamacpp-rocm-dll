@@ -51,34 +51,6 @@ jobs:
         }
         
         Write-Host "Cleanup completed successfully"
-      
-    - name: Install build dependencies manually
-      run: |
-        Write-Host "Installing build dependencies using manual methods..."
-        
-        # Install Ninja manually
-        Write-Host "Installing Ninja..."
-        $ninjaUrl = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
-        $ninjaPath = "$env:TEMP\ninja-win.zip"
-        $ninjaDir = "C:\ninja"
-        New-Item -ItemType Directory -Force -Path $ninjaDir
-        Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaPath
-        Expand-Archive -Path $ninjaPath -DestinationPath $ninjaDir -Force
-        
-        # Install Strawberry Perl manually
-        Write-Host "Installing Strawberry Perl..."
-        $perlUrl = "http://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi"
-        $perlPath = "$env:TEMP\strawberry-perl-5.32.1.1-64bit.msi"
-        Invoke-WebRequest -Uri $perlUrl -OutFile $perlPath
-        Start-Process msiexec.exe -ArgumentList "/i $perlPath /quiet /norestart" -Wait
-        
-        # Verify installations
-        $env:PATH = "C:\ninja;C:\Strawberry\perl\bin;$env:PATH"
-        Write-Host "Verifying installations..."
-        ninja --version
-        perl --version
-
-        Write-Host "Manual installation of build dependencies completed"
 
     - name: Install Visual Studio Build Tools
       run: |
@@ -94,6 +66,34 @@ jobs:
         
         # Clean up installer
         Remove-Item $vsInstallerPath -Force
+
+    - name: Install build dependencies
+      run: |
+        Write-Host "Installing build dependencies using manual methods..."
+        
+        # Install Ninja
+        Write-Host "Installing Ninja..."
+        $ninjaUrl = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
+        $ninjaPath = "$env:TEMP\ninja-win.zip"
+        $ninjaDir = "C:\ninja"
+        New-Item -ItemType Directory -Force -Path $ninjaDir
+        Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaPath
+        Expand-Archive -Path $ninjaPath -DestinationPath $ninjaDir -Force
+        
+        # Install Strawberry Perl
+        Write-Host "Installing Strawberry Perl..."
+        $perlUrl = "http://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi"
+        $perlPath = "$env:TEMP\strawberry-perl-5.32.1.1-64bit.msi"
+        Invoke-WebRequest -Uri $perlUrl -OutFile $perlPath
+        Start-Process msiexec.exe -ArgumentList "/i $perlPath /quiet /norestart" -Wait
+        
+        # Verify installations
+        $env:PATH = "C:\ninja;C:\Strawberry\perl\bin;$env:PATH"
+        Write-Host "Verifying installations..."
+        ninja --version
+        perl --version
+
+        Write-Host "Manual installation of build dependencies completed"
             
     - name: Download ROCm nightly tarball
       run: |
