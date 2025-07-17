@@ -233,6 +233,13 @@ jobs:
         path: llama.cpp/build/bin/
         retention-days: 30
         
+    - name: Set job outputs
+      run: |
+        echo "gfx_target=${{ env.AMDGPU_TARGETS }}" >> $GITHUB_OUTPUT
+        echo "rocm_version=${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}" >> $GITHUB_OUTPUT
+        echo "llamacpp_commit_hash=${{ env.LLAMACPP_COMMIT_HASH }}" >> $GITHUB_OUTPUT
+        echo "artifact_name=llamacpp-rocm-windows-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_COMMIT_HASH }}" >> $GITHUB_OUTPUT
+        
     - name: Create release summary
       run: |
         $summary = @"
@@ -305,14 +312,14 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: llamacpp-rocm-windows-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_COMMIT_HASH }}
+        name: ${{ needs.build.outputs.artifact_name }}
         path: ./build-artifacts
         
     - name: Generate release tag
       id: generate-tag
       run: |
-        ROCM_VERSION="${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}"
-        LLAMACPP_COMMIT_HASH="${{ env.LLAMACPP_COMMIT_HASH }}"
+        ROCM_VERSION="${{ needs.build.outputs.rocm_version }}"
+        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
         
         # Create a clean tag with commit hash
         TAG="rocm${ROCM_VERSION}-llama${LLAMACPP_COMMIT_HASH}"
@@ -346,9 +353,9 @@ jobs:
         body: |
 
           **Build Date**: $(date -u)
-          **GPU Target(s)**: ${{ env.AMDGPU_TARGETS }}
-          **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
-          **Llama.cpp Commit Hash**: ${{ env.LLAMACPP_COMMIT_HASH }}
+          **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
+          **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
+          **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}
 
         draft: false
         prerelease: false
@@ -361,5 +368,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-artifacts/
-        asset_name: llamacpp-rocm-windows-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_COMMIT_HASH }}
+        asset_name: ${{ needs.build.outputs.artifact_name }}
         asset_content_type: application/octet-stream 
