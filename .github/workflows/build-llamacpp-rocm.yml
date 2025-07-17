@@ -6,14 +6,14 @@ on:
         description: 'ROCm version to use (e.g., 7.0.0rc20250711) or "latest" to auto-detect'
         required: false
         default: 'latest'
+      llamacpp_version:
+        description: 'Llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for main branch'
+        required: false
+        default: 'latest'
       gfx_target:
         description: 'AMD GPU target (e.g., gfx1151)'
         required: false
         default: 'gfx1151'
-      llamacpp_version:
-        description: 'llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for main branch'
-        required: false
-        default: 'latest'
 
 env:
   HIP_PATH: C:/opt/rocm
