@@ -52,23 +52,54 @@ jobs:
         
         Write-Host "Cleanup completed successfully"
       
-    - name: Setup Chocolatey
-      run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force;
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-      
     - name: Install Visual Studio Build Tools
       run: |
-        choco install visualstudio2022buildtools -y --params "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+        # Download and install Visual Studio Build Tools
+        $vsInstallerUrl = "https://aka.ms/vs/17/release/vs_buildtools.exe"
+        $vsInstallerPath = "$env:TEMP\vs_buildtools.exe"
         
-    - name: Install build dependencies
+        Write-Host "Downloading Visual Studio Build Tools..."
+        Invoke-WebRequest -Uri $vsInstallerUrl -OutFile $vsInstallerPath
+        
+        Write-Host "Installing Visual Studio Build Tools..."
+        Start-Process -FilePath $vsInstallerPath -ArgumentList "--quiet", "--wait", "--norestart", "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "--add", "Microsoft.VisualStudio.Component.VC.CMake.Project", "--add", "Microsoft.VisualStudio.Component.VC.ATL", "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621" -Wait
+        
+        # Clean up installer
+        Remove-Item $vsInstallerPath -Force
+        
+    - name: Install build dependencies with winget
       run: |
-        choco install cmake --version=3.31.0 -y
-        choco install ninja -y
-        choco install ccache -y
-        choco install python -y
-        choco install strawberryperl -y
+        # Install CMake with specific version
+        Write-Host "Installing CMake 3.31.0..."
+        winget install Kitware.CMake --version 3.31.0 --accept-source-agreements --accept-package-agreements
+        
+        # Install Ninja
+        Write-Host "Installing Ninja..."
+        winget install Ninja-build.Ninja --accept-source-agreements --accept-package-agreements
+        
+        # Install Python
+        Write-Host "Installing Python..."
+        winget install Python.Python.3.11 --accept-source-agreements --accept-package-agreements
+        
+        # Install Strawberry Perl
+        Write-Host "Installing Strawberry Perl..."
+        winget install StrawberryPerl.StrawberryPerl --accept-source-agreements --accept-package-agreements
+        
+        # Install ccache (if available via winget, otherwise skip)
+        Write-Host "Attempting to install ccache..."
+        winget install ccache.ccache --accept-source-agreements --accept-package-agreements 2>$null || Write-Host "ccache not available via winget, skipping..."
+        
+    - name: Refresh environment variables
+      run: |
+        # Refresh PATH to include newly installed tools
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+        
+        # Verify installations
+        Write-Host "Verifying installations..."
+        cmake --version
+        ninja --version
+        python --version
+        perl --version
         
     - name: Download ROCm nightly tarball
       run: |
