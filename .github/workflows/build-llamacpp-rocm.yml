@@ -320,8 +320,23 @@ jobs:
         echo "tag=${TAG}" >> $GITHUB_OUTPUT
         echo "Generated release tag: ${TAG}"
         
+    - name: Check if tag already exists
+      id: check-tag
+      run: |
+        TAG="${{ steps.generate-tag.outputs.tag }}"
+        
+        # Check if the tag already exists
+        if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+          echo "Tag $TAG already exists, skipping release creation"
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag $TAG does not exist, proceeding with release creation"
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Create Release
       id: create_release
+      if: steps.check-tag.outputs.tag_exists == 'false'
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -331,15 +346,15 @@ jobs:
         body: |
 
           **Build Date**: $(date -u)
-          **GPU Target**: ${{ env.AMDGPU_TARGETS }}
+          **GPU Target(s)**: ${{ env.AMDGPU_TARGETS }}
           **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
-          **llama.cpp Commit Hash**: ${{ env.LLAMACPP_COMMIT_HASH }}
-          **Platform**: Windows
+          **Llama.cpp Commit Hash**: ${{ env.LLAMACPP_COMMIT_HASH }}
 
         draft: false
         prerelease: false
         
     - name: Upload Release Assets
+      if: steps.check-tag.outputs.tag_exists == 'false'
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
