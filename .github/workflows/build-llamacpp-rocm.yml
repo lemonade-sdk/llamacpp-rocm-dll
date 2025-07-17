@@ -10,12 +10,17 @@ on:
         description: 'AMD GPU target (e.g., gfx1151)'
         required: false
         default: 'gfx1151'
+      llamacpp_version:
+        description: 'llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for main branch'
+        required: false
+        default: 'latest'
 
 env:
   HIP_PATH: C:/opt/rocm
   HIP_PLATFORM: amd
   AMDGPU_TARGETS: ${{ github.event.inputs.gfx_target || 'gfx1151' }}
   ROCM_VERSION: ${{ github.event.inputs.rocm_version || 'latest' }}
+  LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'latest' }}
 
 jobs:
   build:
@@ -103,6 +108,21 @@ jobs:
     - name: Clone llama.cpp
       run: |
         git clone https://github.com/ggerganov/llama.cpp.git
+        cd llama.cpp
+        
+        # Checkout specified version
+        $llamacppVersion = "${{ env.LLAMACPP_VERSION }}"
+        if ($llamacppVersion -eq "latest") {
+          Write-Host "Checking out main branch (latest)"
+          git checkout main
+        } else {
+          Write-Host "Checking out llama.cpp version: $llamacppVersion"
+          git checkout $llamacppVersion
+        }
+        
+        # Show current commit info
+        Write-Host "Current llama.cpp commit:"
+        git log --oneline -1
         
     - name: Update HIP version check
       run: |
@@ -166,7 +186,7 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llamacpp-rocm-build-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
+        name: llamacpp-rocm-build-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_VERSION }}
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -178,6 +198,7 @@ jobs:
         ## Build Configuration
         - **GPU Target**: ${{ env.AMDGPU_TARGETS }}
         - **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
+        - **llama.cpp Version**: ${{ env.LLAMACPP_VERSION }}
         - **Build Type**: Release
         - **Platform**: Windows
         
