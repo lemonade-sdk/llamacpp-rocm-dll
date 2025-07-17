@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       rocm_version:
-        description: 'ROCm version to use (e.g., 7.0.0rc20250711)'
+        description: 'ROCm version to use (e.g., 7.0.0rc20250711) or "latest" to auto-detect'
         required: false
-        default: '7.0.0rc20250711'
+        default: 'latest'
       gfx_target:
         description: 'AMD GPU target (e.g., gfx1151)'
         required: false
@@ -15,7 +15,7 @@ env:
   HIP_PATH: C:/opt/rocm
   HIP_PLATFORM: amd
   AMDGPU_TARGETS: ${{ github.event.inputs.gfx_target || 'gfx1151' }}
-  ROCM_VERSION: ${{ github.event.inputs.rocm_version || '7.0.0rc20250711' }}
+  ROCM_VERSION: ${{ github.event.inputs.rocm_version || 'latest' }}
 
 jobs:
   build:
@@ -67,7 +67,28 @@ jobs:
         
     - name: Download ROCm nightly tarball
       run: |
-        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-${{ env.AMDGPU_TARGETS }}-${{ env.ROCM_VERSION }}.tar.gz"
+        # Determine ROCm version to use
+        $rocmVersion = "${{ env.ROCM_VERSION }}"
+        
+        if ($rocmVersion -eq "latest") {
+          Write-Host "Auto-detecting latest ROCm version for target: ${{ env.AMDGPU_TARGETS }}"
+          $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-${{ env.AMDGPU_TARGETS }}-").Content
+          $latestFile = $s3Response -split '<Key>' | Where-Object {$_ -match '</Key>'} | ForEach-Object { ($_ -split '</Key>')[0] } | Sort-Object | Select-Object -Last 1
+          
+          if ($latestFile -match "therock-dist-windows-${{ env.AMDGPU_TARGETS }}-(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
+            $rocmVersion = $matches[1]
+            Write-Host "Detected latest ROCm version: $rocmVersion"
+          } else {
+            Write-Error "Failed to extract ROCm version from latest file: $latestFile"
+            Write-Error "Expected pattern: therock-dist-windows-${{ env.AMDGPU_TARGETS }}-<version>.tar.gz"
+            exit 1
+          }
+        }
+        
+        # Store the version for use in other steps
+        echo "DETECTED_ROCM_VERSION=$rocmVersion" >> $env:GITHUB_ENV
+        
+        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-${{ env.AMDGPU_TARGETS }}-$rocmVersion.tar.gz"
         Write-Host "Downloading ROCm from: $rocmUrl"
         Invoke-WebRequest -Uri $rocmUrl -OutFile "rocm.tar.gz"
         
@@ -145,7 +166,7 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llamacpp-rocm-build-${{ env.AMDGPU_TARGETS }}-${{ env.ROCM_VERSION }}
+        name: llamacpp-rocm-build-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -156,7 +177,7 @@ jobs:
         
         ## Build Configuration
         - **GPU Target**: ${{ env.AMDGPU_TARGETS }}
-        - **ROCm Version**: ${{ env.ROCM_VERSION }}
+        - **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
         - **Build Type**: Release
         - **Platform**: Windows
         
