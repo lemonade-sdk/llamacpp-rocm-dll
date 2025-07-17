@@ -2,6 +2,10 @@ name: Build Llama.cpp + ROCm
 on:
   workflow_dispatch:
     inputs:
+      gfx_target:
+        description: 'AMD GPU target (e.g., gfx1151)'
+        required: false
+        default: 'gfx1151'
       rocm_version:
         description: 'ROCm version to use (e.g., 7.0.0rc20250711) or "latest" to auto-detect'
         required: false
@@ -10,10 +14,6 @@ on:
         description: 'Llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for main branch'
         required: false
         default: 'latest'
-      gfx_target:
-        description: 'AMD GPU target (e.g., gfx1151)'
-        required: false
-        default: 'gfx1151'
 
 env:
   HIP_PATH: C:/opt/rocm
@@ -52,23 +52,27 @@ jobs:
         
         Write-Host "Cleanup completed successfully"
       
-    - name: Install Visual Studio Build Tools
+    - name: Install winget if not available
       run: |
-        # Download and install Visual Studio Build Tools
-        $vsInstallerUrl = "https://aka.ms/vs/17/release/vs_buildtools.exe"
-        $vsInstallerPath = "$env:TEMP\vs_buildtools.exe"
-        
-        Write-Host "Downloading Visual Studio Build Tools..."
-        Invoke-WebRequest -Uri $vsInstallerUrl -OutFile $vsInstallerPath
-        
-        Write-Host "Installing Visual Studio Build Tools..."
-        Start-Process -FilePath $vsInstallerPath -ArgumentList "--quiet", "--wait", "--norestart", "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "--add", "Microsoft.VisualStudio.Component.VC.CMake.Project", "--add", "Microsoft.VisualStudio.Component.VC.ATL", "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621" -Wait
-        
-        # Clean up installer
-        Remove-Item $vsInstallerPath -Force
+        # Check if winget is available
+        try {
+          winget --version | Out-Null
+          Write-Host "winget is already available"
+        } catch {
+          Write-Host "winget not found, installing App Installer..."
+          # Download and install App Installer (which includes winget)
+          $appInstallerUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+          $appInstallerPath = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+          
+          Invoke-WebRequest -Uri $appInstallerUrl -OutFile $appInstallerPath
+          Add-AppxPackage -Path $appInstallerPath
+        }
         
     - name: Install build dependencies with winget
       run: |
+        # Refresh PATH to ensure winget is available
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+        
         # Install CMake with specific version
         Write-Host "Installing CMake 3.31.0..."
         winget install Kitware.CMake --version 3.31.0 --accept-source-agreements --accept-package-agreements
@@ -85,10 +89,10 @@ jobs:
         Write-Host "Installing Strawberry Perl..."
         winget install StrawberryPerl.StrawberryPerl --accept-source-agreements --accept-package-agreements
         
-        # Install ccache (if available via winget, otherwise skip)
+        # Install ccache
         Write-Host "Attempting to install ccache..."
-        winget install ccache.ccache --accept-source-agreements --accept-package-agreements 2>$null || Write-Host "ccache not available via winget, skipping..."
-        
+        winget install ccache.ccache --accept-source-agreements --accept-package-agreements
+
     - name: Refresh environment variables
       run: |
         # Refresh PATH to include newly installed tools
@@ -100,7 +104,22 @@ jobs:
         ninja --version
         python --version
         perl --version
+
+    - name: Install Visual Studio Build Tools
+      run: |
+        # Download and install Visual Studio Build Tools
+        $vsInstallerUrl = "https://aka.ms/vs/17/release/vs_buildtools.exe"
+        $vsInstallerPath = "$env:TEMP\vs_buildtools.exe"
         
+        Write-Host "Downloading Visual Studio Build Tools..."
+        Invoke-WebRequest -Uri $vsInstallerUrl -OutFile $vsInstallerPath
+        
+        Write-Host "Installing Visual Studio Build Tools..."
+        Start-Process -FilePath $vsInstallerPath -ArgumentList "--quiet", "--wait", "--norestart", "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "--add", "Microsoft.VisualStudio.Component.VC.CMake.Project", "--add", "Microsoft.VisualStudio.Component.VC.ATL", "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621" -Wait
+        
+        # Clean up installer
+        Remove-Item $vsInstallerPath -Force
+            
     - name: Download ROCm nightly tarball
       run: |
         # Determine ROCm version to use
