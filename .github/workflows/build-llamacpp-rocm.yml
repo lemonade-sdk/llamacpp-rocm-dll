@@ -36,6 +36,11 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      gfx_target: ${{ steps.set_outputs.outputs.gfx_target }}
+      rocm_version: ${{ steps.set_outputs.outputs.rocm_version }}
+      llamacpp_commit_hash: ${{ steps.set_outputs.outputs.llamacpp_commit_hash }}
+      artifact_name: ${{ steps.set_outputs.outputs.artifact_name }}
 
     
     steps:
@@ -234,6 +239,7 @@ jobs:
         retention-days: 30
         
     - name: Set job outputs
+      id: set_outputs
       run: |
         echo "gfx_target=${{ env.AMDGPU_TARGETS }}" >> $GITHUB_OUTPUT
         echo "rocm_version=${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}" >> $GITHUB_OUTPUT
@@ -351,6 +357,16 @@ jobs:
         tar -czf "../${{ needs.build.outputs.artifact_name }}.tar.gz" *
         cd ..
         
+    - name: Generate release notes file
+      if: steps.check-tag.outputs.tag_exists == 'false'
+      run: |
+        cat <<EOF > RELEASE_NOTES.md
+        **Build Date**: $(date -u)
+        **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
+        **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
+        **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}
+        EOF
+
     - name: Create Release
       if: steps.check-tag.outputs.tag_exists == 'false'
       env:
@@ -361,8 +377,5 @@ jobs:
         # Create release with GitHub CLI
         gh release create "$TAG" \
           --title "$TAG" \
-          --notes "**Build Date**: $(date -u)
-        **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
-        **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
-        **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}" \
+          --notes-file RELEASE_NOTES.md \
           "${{ needs.build.outputs.artifact_name }}.tar.gz"
