@@ -37,10 +37,10 @@ jobs:
   build:
     runs-on: windows-latest
     outputs:
-      gfx_target: ${{ steps.set_outputs.outputs.gfx_target }}
-      rocm_version: ${{ steps.set_outputs.outputs.rocm_version }}
-      llamacpp_commit_hash: ${{ steps.set_outputs.outputs.llamacpp_commit_hash }}
-      artifact_name: ${{ steps.set_outputs.outputs.artifact_name }}
+      gfx_target: ${{ steps.set-outputs.outputs.gfx_target }}
+      rocm_version: ${{ steps.set-outputs.outputs.rocm_version }}
+      llamacpp_commit_hash: ${{ steps.set-outputs.outputs.llamacpp_commit_hash }}
+      artifact_name: ${{ steps.set-outputs.outputs.artifact_name }}
 
     
     steps:
@@ -239,12 +239,22 @@ jobs:
         retention-days: 30
         
     - name: Set job outputs
-      id: set_outputs
+      id: set-outputs
       run: |
-        echo "gfx_target=${{ env.AMDGPU_TARGETS }}" >> $GITHUB_OUTPUT
-        echo "rocm_version=${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}" >> $GITHUB_OUTPUT
-        echo "llamacpp_commit_hash=${{ env.LLAMACPP_COMMIT_HASH }}" >> $GITHUB_OUTPUT
-        echo "artifact_name=llamacpp-rocm-windows-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_COMMIT_HASH }}" >> $GITHUB_OUTPUT
+        Write-Host "Setting job outputs..."
+        Write-Host "AMDGPU_TARGETS: $env:AMDGPU_TARGETS"
+        Write-Host "DETECTED_ROCM_VERSION: $env:DETECTED_ROCM_VERSION"
+        Write-Host "ROCM_VERSION: $env:ROCM_VERSION"
+        Write-Host "LLAMACPP_COMMIT_HASH: $env:LLAMACPP_COMMIT_HASH"
+        
+        echo "gfx_target=$env:AMDGPU_TARGETS" >> $env:GITHUB_OUTPUT
+        $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
+        echo "rocm_version=$rocmVersion" >> $env:GITHUB_OUTPUT
+        echo "llamacpp_commit_hash=$env:LLAMACPP_COMMIT_HASH" >> $env:GITHUB_OUTPUT
+        $artifactName = "llamacpp-rocm-windows-$env:AMDGPU_TARGETS-$rocmVersion-$env:LLAMACPP_COMMIT_HASH"
+        echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+        
+        Write-Host "Final artifact name: $artifactName"
         
     - name: Create release summary
       run: |
@@ -353,29 +363,32 @@ jobs:
     - name: Create archive of build artifacts
       if: steps.check-tag.outputs.tag_exists == 'false'
       run: |
+        ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
+        echo "Creating archive: ${ARTIFACT_NAME}.tar.gz"
         cd build-artifacts
-        tar -czf "../${{ needs.build.outputs.artifact_name }}.tar.gz" *
+        tar -czf "../${ARTIFACT_NAME}.tar.gz" *
         cd ..
+        ls -la *.tar.gz
         
-    - name: Generate release notes file
-      if: steps.check-tag.outputs.tag_exists == 'false'
-      run: |
-        cat <<EOF > RELEASE_NOTES.md
-        **Build Date**: $(date -u)
-        **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
-        **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
-        **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}
-        EOF
-
     - name: Create Release
       if: steps.check-tag.outputs.tag_exists == 'false'
       env:
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         TAG="${{ steps.generate-tag.outputs.tag }}"
+        ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
+        
+        echo "Creating release with tag: $TAG"
+        echo "Artifact name: $ARTIFACT_NAME"
+        echo "GPU Target: ${{ needs.build.outputs.gfx_target }}"
+        echo "ROCm Version: ${{ needs.build.outputs.rocm_version }}"
+        echo "Llama.cpp Commit: ${{ needs.build.outputs.llamacpp_commit_hash }}"
         
         # Create release with GitHub CLI
         gh release create "$TAG" \
           --title "$TAG" \
-          --notes-file RELEASE_NOTES.md \
-          "${{ needs.build.outputs.artifact_name }}.tar.gz"
+          --notes "**Build Date**: $(date -u)
+        **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
+        **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
+        **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}" \
+          "${ARTIFACT_NAME}.tar.gz"
