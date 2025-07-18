@@ -331,7 +331,7 @@ jobs:
         LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
         
         # Create a clean tag with commit hash
-        TAG="rocm${ROCM_VERSION}-llama${LLAMACPP_COMMIT_HASH}"
+        TAG="llama${LLAMACPP_COMMIT_HASH}-rocm${ROCM_VERSION}"
         
         echo "tag=${TAG}" >> $GITHUB_OUTPUT
         echo "Generated release tag: ${TAG}"
