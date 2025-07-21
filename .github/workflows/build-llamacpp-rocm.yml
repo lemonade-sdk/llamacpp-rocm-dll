@@ -323,6 +323,21 @@ jobs:
             }
           }
           
+          # Copy the rocblas\library folder and all its contents
+          $rocblasLibPath = Join-Path $rocmBinPath "rocblas\library"
+          if (Test-Path $rocblasLibPath) {
+            Write-Host "Copying rocblas\library folder and all contents..."
+            $destRocblasPath = Join-Path $tempDir "rocblas\library"
+            Copy-Item -Path $rocblasLibPath -Destination $destRocblasPath -Recurse -Force
+            Write-Host "Copied: rocblas\library folder with all contents"
+            
+            # List the contents of the copied rocblas\library folder
+            Write-Host "Contents of rocblas\library:"
+            Get-ChildItem $destRocblasPath -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          } else {
+            Write-Host "Warning: rocblas\library folder not found at: $rocblasLibPath"
+          }
+          
           # List what was actually copied
           Write-Host "ROCm core files to be packaged:"
           Get-ChildItem $tempDir | Format-Table Name, Length
