@@ -234,7 +234,7 @@ jobs:
       id: upload-artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llama${{ env.LLAMACPP_COMMIT_HASH }}-win-rocm-x64
+        name: llama-${{ env.LLAMACPP_COMMIT_HASH }}-win-rocm-x64
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -251,7 +251,7 @@ jobs:
         $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
         echo "rocm_version=$rocmVersion" >> $env:GITHUB_OUTPUT
         echo "llamacpp_commit_hash=$env:LLAMACPP_COMMIT_HASH" >> $env:GITHUB_OUTPUT
-        $artifactName = "llama$env:LLAMACPP_COMMIT_HASH-win-rocm-x64"
+        $artifactName = "llama-$env:LLAMACPP_COMMIT_HASH-win-rocm-x64"
         echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
         
         Write-Host "Final artifact name: $artifactName"
