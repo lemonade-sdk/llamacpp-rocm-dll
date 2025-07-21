@@ -234,7 +234,7 @@ jobs:
       id: upload-artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llamacpp-rocm-windows-${{ env.AMDGPU_TARGETS }}-${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-${{ env.LLAMACPP_COMMIT_HASH }}
+        name: llama${{ env.LLAMACPP_COMMIT_HASH }}-rocm${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}-win-x64
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -251,7 +251,7 @@ jobs:
         $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
         echo "rocm_version=$rocmVersion" >> $env:GITHUB_OUTPUT
         echo "llamacpp_commit_hash=$env:LLAMACPP_COMMIT_HASH" >> $env:GITHUB_OUTPUT
-        $artifactName = "llamacpp-rocm-windows-$env:AMDGPU_TARGETS-$rocmVersion-$env:LLAMACPP_COMMIT_HASH"
+        $artifactName = "llama$env:LLAMACPP_COMMIT_HASH-rocm$rocmVersion-win-x64"
         echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
         
         Write-Host "Final artifact name: $artifactName"
@@ -364,11 +364,11 @@ jobs:
       if: steps.check-tag.outputs.tag_exists == 'false'
       run: |
         ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
-        echo "Creating archive: ${ARTIFACT_NAME}.tar.gz"
+        echo "Creating archive: ${ARTIFACT_NAME}.zip"
         cd build-artifacts
-        tar -czf "../${ARTIFACT_NAME}.tar.gz" *
+        zip -r "../${ARTIFACT_NAME}.zip" *
         cd ..
-        ls -la *.tar.gz
+        ls -la *.zip
         
     - name: Create Release
       if: steps.check-tag.outputs.tag_exists == 'false'
@@ -391,4 +391,4 @@ jobs:
         **GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
         **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
         **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}" \
-          "${ARTIFACT_NAME}.tar.gz"
+          "${ARTIFACT_NAME}.zip"
