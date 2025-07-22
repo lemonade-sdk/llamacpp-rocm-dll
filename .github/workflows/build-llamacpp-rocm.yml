@@ -42,14 +42,18 @@ jobs:
     - name: Set matrix
       id: set-matrix
       run: |
-        # Parse comma-separated targets and create matrix
         targets="${{ env.GFX_TARGETS }}"
         echo "Input targets: $targets"
-        
-        # Generate compact JSON matrix
-        matrix_json=$(echo "$targets" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/^"//;s/"$//' | jq -R . | jq -s .)
-        matrix_output=$(jq -c --argjson arr "$matrix_json" '{gfx_target: $arr}')
-        
+
+        # Convert to JSON array and compact into matrix
+        matrix_output=$(echo "$targets" \
+          | tr ',' '\n' \
+          | sed 's/^ *//;s/ *$//' \
+          | sed 's/^"//;s/"$//' \
+          | jq -R . \
+          | jq -s '{gfx_target: .}' \
+          | jq -c)
+
         echo "matrix=$matrix_output" >> $GITHUB_OUTPUT
         echo "Generated matrix: $matrix_output"
 
