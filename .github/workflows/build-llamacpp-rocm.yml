@@ -143,11 +143,14 @@ jobs:
         $rocmVersion = "${{ env.ROCM_VERSION }}"
         $currentTarget = "${{ matrix.gfx_target }}"
         
-        # Add -dgpu suffix for gfx120X and gfx110X targets
+        # Add appropriate suffixes for different GPU targets
         $s3Target = $currentTarget
-        if ($currentTarget -eq "gfx120X" -or $currentTarget -eq "gfx110X") {
+        if ($currentTarget -eq "gfx110X") {
           $s3Target = "$currentTarget-dgpu"
           Write-Host "Using S3 target with -dgpu suffix: $s3Target"
+        } elseif ($currentTarget -eq "gfx120X") {
+          $s3Target = "$currentTarget-all"
+          Write-Host "Using S3 target with -all suffix: $s3Target"
         }
         
         if ($rocmVersion -eq "latest") {
