@@ -225,9 +225,65 @@ jobs:
         REM Build the project
         cmake --build . -j %NUMBER_OF_PROCESSORS%
         
-    - name: List build artifacts
+    - name: Copy ROCm core DLLs to build directory
+      run: |
+        $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
+        $buildBinPath = "llama.cpp\build\bin"
+        $rocmBinPath = "C:\opt\rocm\bin"
+        
+        Write-Host "Copying ROCm core DLL files to build directory..."
+        Write-Host "Source: $rocmBinPath"
+        Write-Host "Destination: $buildBinPath"
+        
+        if (Test-Path $rocmBinPath) {
+          # Copy files matching patterns and specific names
+          $filesToCopy = @(
+            "amdhip64_*.dll",
+            "amd_comgr*.dll", 
+            "libhipblas.dll",
+            "rocblas.dll",
+            "rocsolver.dll"
+          )
+          
+          foreach ($pattern in $filesToCopy) {
+            $matchingFiles = Get-ChildItem -Path $rocmBinPath -Name $pattern -ErrorAction SilentlyContinue
+            if ($matchingFiles) {
+              foreach ($file in $matchingFiles) {
+                $sourcePath = Join-Path $rocmBinPath $file
+                $destPath = Join-Path $buildBinPath $file
+                Copy-Item $sourcePath $destPath
+                Write-Host "Copied: $file"
+              }
+            } else {
+              Write-Host "Warning: No files found matching pattern: $pattern"
+            }
+          }
+          
+          # Copy the rocblas\library folder and all its contents
+          $rocblasLibPath = Join-Path $rocmBinPath "rocblas\library"
+          if (Test-Path $rocblasLibPath) {
+            Write-Host "Copying rocblas\library folder and all contents..."
+            $destRocblasPath = Join-Path $buildBinPath "rocblas\library"
+            Copy-Item -Path $rocblasLibPath -Destination $destRocblasPath -Recurse -Force
+            Write-Host "Copied: rocblas\library folder with all contents"
+            
+            # List the contents of the copied rocblas\library folder
+            Write-Host "Contents of rocblas\library:"
+            Get-ChildItem $destRocblasPath -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          } else {
+            Write-Host "Warning: rocblas\library folder not found at: $rocblasLibPath"
+          }
+          
+          Write-Host "ROCm core files successfully copied to build directory"
+        } else {
+          Write-Error "ROCm bin directory not found: $rocmBinPath"
+          exit 1
+        }
+        
+    - name: List build artifacts (including ROCm files)
       run: |
         cd llama.cpp\build\bin
+        Write-Host "Final build artifacts (including ROCm core files):"
         Get-ChildItem -Recurse | Format-Table Name, Length, LastWriteTime
         
     - name: Upload build artifacts
@@ -283,87 +339,7 @@ jobs:
         path: build-summary.md
         retention-days: 30
         
-    - name: Create ROCm core DLL package
-      run: |
-        $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
-        $rocmCoreZip = "rocm-$rocmVersion-core-win-x64.zip"
-        
-        Write-Host "Creating ROCm core DLL package: $rocmCoreZip"
-        
-        # Create a temporary directory for ROCm core files
-        $tempDir = "rocm-core-temp"
-        New-Item -ItemType Directory -Force -Path $tempDir
-        
-        # Copy the specified DLL files from C:\opt\rocm\bin
-        $rocmBinPath = "C:\opt\rocm\bin"
-        
-        if (Test-Path $rocmBinPath) {
-          Write-Host "Copying ROCm core DLL files from $rocmBinPath..."
-          
-          # Copy files matching patterns and specific names
-          $filesToCopy = @(
-            "amdhip64_*.dll",
-            "amd_comgr*.dll", 
-            "libhipblas.dll",
-            "rocblas.dll",
-            "rocsolver.dll"
-          )
-          
-          foreach ($pattern in $filesToCopy) {
-            $matchingFiles = Get-ChildItem -Path $rocmBinPath -Name $pattern -ErrorAction SilentlyContinue
-            if ($matchingFiles) {
-              foreach ($file in $matchingFiles) {
-                $sourcePath = Join-Path $rocmBinPath $file
-                $destPath = Join-Path $tempDir $file
-                Copy-Item $sourcePath $destPath
-                Write-Host "Copied: $file"
-              }
-            } else {
-              Write-Host "Warning: No files found matching pattern: $pattern"
-            }
-          }
-          
-          # Copy the rocblas\library folder and all its contents
-          $rocblasLibPath = Join-Path $rocmBinPath "rocblas\library"
-          if (Test-Path $rocblasLibPath) {
-            Write-Host "Copying rocblas\library folder and all contents..."
-            $destRocblasPath = Join-Path $tempDir "rocblas\library"
-            Copy-Item -Path $rocblasLibPath -Destination $destRocblasPath -Recurse -Force
-            Write-Host "Copied: rocblas\library folder with all contents"
-            
-            # List the contents of the copied rocblas\library folder
-            Write-Host "Contents of rocblas\library:"
-            Get-ChildItem $destRocblasPath -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
-          } else {
-            Write-Host "Warning: rocblas\library folder not found at: $rocblasLibPath"
-          }
-          
-          # List what was actually copied
-          Write-Host "ROCm core files to be packaged:"
-          Get-ChildItem $tempDir | Format-Table Name, Length
-          
-          # Create the zip file
-          Compress-Archive -Path "$tempDir\*" -DestinationPath $rocmCoreZip -CompressionLevel Optimal
-          
-          # Clean up temp directory
-          Remove-Item -Recurse -Force $tempDir
-          
-          Write-Host "ROCm core package created: $rocmCoreZip"
-          
-          # Store the filename for use in other jobs
-          echo "ROCM_CORE_ZIP=$rocmCoreZip" >> $env:GITHUB_ENV
-        } else {
-          Write-Error "ROCm bin directory not found: $rocmBinPath"
-          exit 1
-        }
-        
-    - name: Upload ROCm core DLL package
-      id: upload-rocm-core
-      uses: actions/upload-artifact@v4
-      with:
-        name: rocm-core-package
-        path: ${{ env.ROCM_CORE_ZIP }}
-        retention-days: 30
+
         
     - name: Clean up build artifacts and temporary files
       if: always()
@@ -416,12 +392,6 @@ jobs:
         name: ${{ needs.build.outputs.artifact_name }}
         path: ./build-artifacts
         
-    - name: Download ROCm core package
-      uses: actions/download-artifact@v4
-      with:
-        name: rocm-core-package
-        path: ./rocm-core-package
-        
     - name: Generate release tag
       id: generate-tag
       run: |
@@ -466,30 +436,22 @@ jobs:
         TAG="${{ steps.generate-tag.outputs.tag }}"
         ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
         ROCM_VERSION="${{ needs.build.outputs.rocm_version }}"
-        ROCM_CORE_ZIP="rocm-${ROCM_VERSION}-core-win-x64.zip"
         
         echo "Creating release with tag: $TAG"
         echo "Artifact name: $ARTIFACT_NAME"
         echo "GPU Target: ${{ needs.build.outputs.gfx_target }}"
         echo "ROCm Version: $ROCM_VERSION"
         echo "Llama.cpp Commit: ${{ needs.build.outputs.llamacpp_commit_hash }}"
-        echo "ROCm Core ZIP: $ROCM_CORE_ZIP"
         
-        # Copy ROCm core package to current directory
-        cp "./rocm-core-package/$ROCM_CORE_ZIP" "./$ROCM_CORE_ZIP"
+        # Verify file exists
+        ls -la "${ARTIFACT_NAME}.zip"
         
-        # Verify files exist
-        ls -la "${ARTIFACT_NAME}.zip" "$ROCM_CORE_ZIP"
-        
-        # Create release with GitHub CLI, uploading both files
+        # Create release with GitHub CLI
         gh release create "$TAG" \
           --title "$TAG" \
           --notes "**GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
         **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
         **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}
 
-        This release includes:
-        - \`${ARTIFACT_NAME}.zip\`: Compiled llama.cpp binaries with ROCm support
-        - \`${ROCM_CORE_ZIP}\`: Essential ROCm runtime DLL files for Windows" \
-          "${ARTIFACT_NAME}.zip" \
-          "$ROCM_CORE_ZIP"
+        This release includes compiled llama.cpp binaries with ROCm support and all essential ROCm runtime DLL files for Windows." \
+          "${ARTIFACT_NAME}.zip"
