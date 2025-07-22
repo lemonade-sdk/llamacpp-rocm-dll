@@ -148,12 +148,12 @@ jobs:
           $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-$currentTarget-").Content
           $latestFile = $s3Response -split '<Key>' | Where-Object {$_ -match '</Key>'} | ForEach-Object { ($_ -split '</Key>')[0] } | Sort-Object | Select-Object -Last 1
           
-          if ($latestFile -match "therock-dist-windows-$currentTarget-(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
+          if ($latestFile -match "therock-dist-windows-$currentTarget-.*?(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
             $rocmVersion = $matches[1]
             Write-Host "Detected latest ROCm version: $rocmVersion"
           } else {
             Write-Error "Failed to extract ROCm version from latest file: $latestFile"
-            Write-Error "Expected pattern: therock-dist-windows-$currentTarget-<version>.tar.gz"
+            Write-Error "Expected pattern: therock-dist-windows-$currentTarget-*<version>.tar.gz"
             exit 1
           }
         }
