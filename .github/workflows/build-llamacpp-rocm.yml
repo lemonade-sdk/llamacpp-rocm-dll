@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       gfx_target:
-        description: 'AMD GPU target (e.g., gfx1151)'
+        description: 'AMD GPU targets (comma-separated, e.g., gfx1151,gfx1201)'
         required: false
-        default: 'gfx1151'
+        default: 'gfx1151,gfx1201'
       rocm_version:
         description: 'ROCm version to use (e.g., 7.0.0rc20250711) or "latest" to auto-detect'
         required: false
@@ -29,18 +29,43 @@ on:
 env:
   HIP_PATH: C:/opt/rocm
   HIP_PLATFORM: amd
-  AMDGPU_TARGETS: ${{ github.event.inputs.gfx_target || 'gfx1151' }}
   ROCM_VERSION: ${{ github.event.inputs.rocm_version || 'latest' }}
   LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'latest' }}
 
 jobs:
-  build:
-    runs-on: windows-latest
+  prepare-matrix:
+    runs-on: ubuntu-latest
     outputs:
-      gfx_target: ${{ steps.set-outputs.outputs.gfx_target }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      gfx_targets: ${{ steps.set-matrix.outputs.gfx_targets }}
+    steps:
+    - name: Set matrix
+      id: set-matrix
+      run: |
+        # Parse the targets from inputs or use default
+        TARGETS="${{ github.event.inputs.gfx_target }}"
+        if [ -z "$TARGETS" ]; then
+          TARGETS="gfx1151,gfx1201"
+        fi
+        
+        echo "Input targets: $TARGETS"
+        
+        # Convert comma-separated targets to JSON array format
+        MATRIX_JSON=$(echo "$TARGETS" | jq -R 'split(",") | map(select(length > 0))')
+        echo "Generated matrix: $MATRIX_JSON"
+        
+        echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+        echo "gfx_targets=$TARGETS" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare-matrix
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        gfx_target: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    outputs:
       rocm_version: ${{ steps.set-outputs.outputs.rocm_version }}
       llamacpp_commit_hash: ${{ steps.set-outputs.outputs.llamacpp_commit_hash }}
-      artifact_name: ${{ steps.set-outputs.outputs.artifact_name }}
 
     
     steps:
@@ -116,18 +141,19 @@ jobs:
       run: |
         # Determine ROCm version to use
         $rocmVersion = "${{ env.ROCM_VERSION }}"
+        $currentTarget = "${{ matrix.gfx_target }}"
         
         if ($rocmVersion -eq "latest") {
-          Write-Host "Auto-detecting latest ROCm version for target: ${{ env.AMDGPU_TARGETS }}"
-          $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-${{ env.AMDGPU_TARGETS }}-").Content
+          Write-Host "Auto-detecting latest ROCm version for target: $currentTarget"
+          $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-$currentTarget-").Content
           $latestFile = $s3Response -split '<Key>' | Where-Object {$_ -match '</Key>'} | ForEach-Object { ($_ -split '</Key>')[0] } | Sort-Object | Select-Object -Last 1
           
-          if ($latestFile -match "therock-dist-windows-${{ env.AMDGPU_TARGETS }}-(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
+          if ($latestFile -match "therock-dist-windows-$currentTarget-(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
             $rocmVersion = $matches[1]
             Write-Host "Detected latest ROCm version: $rocmVersion"
           } else {
             Write-Error "Failed to extract ROCm version from latest file: $latestFile"
-            Write-Error "Expected pattern: therock-dist-windows-${{ env.AMDGPU_TARGETS }}-<version>.tar.gz"
+            Write-Error "Expected pattern: therock-dist-windows-$currentTarget-<version>.tar.gz"
             exit 1
           }
         }
@@ -135,7 +161,7 @@ jobs:
         # Store the version for use in other steps
         echo "DETECTED_ROCM_VERSION=$rocmVersion" >> $env:GITHUB_ENV
         
-        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-${{ env.AMDGPU_TARGETS }}-$rocmVersion.tar.gz"
+        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-$currentTarget-$rocmVersion.tar.gz"
         Write-Host "Downloading ROCm from: $rocmUrl"
         Invoke-WebRequest -Uri $rocmUrl -OutFile "rocm.tar.gz"
         
@@ -209,7 +235,7 @@ jobs:
           -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" ^
           -DCMAKE_CROSSCOMPILING=ON ^
           -DCMAKE_BUILD_TYPE=Release ^
-          -DAMDGPU_TARGETS="${{ env.AMDGPU_TARGETS }}" ^
+          -DAMDGPU_TARGETS="${{ matrix.gfx_target }}" ^
           -DBUILD_SHARED_LIBS=ON ^
           -DLLAMA_BUILD_TESTS=OFF ^
           -DGGML_HIP=ON ^
@@ -290,7 +316,7 @@ jobs:
       id: upload-artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llama-${{ env.LLAMACPP_COMMIT_HASH }}-win-rocm-x64
+        name: llama-${{ env.LLAMACPP_COMMIT_HASH }}-win-rocm-${{ matrix.gfx_target }}-x64
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -298,19 +324,17 @@ jobs:
       id: set-outputs
       run: |
         Write-Host "Setting job outputs..."
-        Write-Host "AMDGPU_TARGETS: $env:AMDGPU_TARGETS"
+        Write-Host "Current matrix target: ${{ matrix.gfx_target }}"
         Write-Host "DETECTED_ROCM_VERSION: $env:DETECTED_ROCM_VERSION"
         Write-Host "ROCM_VERSION: $env:ROCM_VERSION"
         Write-Host "LLAMACPP_COMMIT_HASH: $env:LLAMACPP_COMMIT_HASH"
         
-        echo "gfx_target=$env:AMDGPU_TARGETS" >> $env:GITHUB_OUTPUT
         $rocmVersion = if ($env:DETECTED_ROCM_VERSION) { $env:DETECTED_ROCM_VERSION } else { $env:ROCM_VERSION }
         echo "rocm_version=$rocmVersion" >> $env:GITHUB_OUTPUT
         echo "llamacpp_commit_hash=$env:LLAMACPP_COMMIT_HASH" >> $env:GITHUB_OUTPUT
-        $artifactName = "llama-$env:LLAMACPP_COMMIT_HASH-win-rocm-x64"
-        echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+        $artifactName = "llama-$env:LLAMACPP_COMMIT_HASH-win-rocm-${{ matrix.gfx_target }}-x64"
         
-        Write-Host "Final artifact name: $artifactName"
+        Write-Host "Artifact name for target ${{ matrix.gfx_target }}: $artifactName"
         
     - name: Create release summary
       run: |
@@ -318,7 +342,7 @@ jobs:
         # Llama.cpp + ROCm Build Summary
         
         ## Build Configuration
-        - **GPU Target**: ${{ env.AMDGPU_TARGETS }}
+        - **GPU Target**: ${{ matrix.gfx_target }}
         - **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
         - **llama.cpp Commit Hash**: ${{ env.LLAMACPP_COMMIT_HASH }}
         - **Build Type**: Release
@@ -329,14 +353,14 @@ jobs:
 
         "@
         
-        Set-Content -Path "build-summary.md" -Value $summary
+        Set-Content -Path "build-summary-${{ matrix.gfx_target }}.md" -Value $summary
         
     - name: Upload build summary
       id: upload-summary
       uses: actions/upload-artifact@v4
       with:
-        name: build-summary
-        path: build-summary.md
+        name: build-summary-${{ matrix.gfx_target }}
+        path: build-summary-${{ matrix.gfx_target }}.md
         retention-days: 30
         
 
@@ -364,15 +388,15 @@ jobs:
         }
         
         # Clean up any temporary build files
-        if (Test-Path "build-summary.md") {
-          Write-Host "Removing build-summary.md..."
-          Remove-Item -Force "build-summary.md"
+        if (Test-Path "build-summary-${{ matrix.gfx_target }}.md") {
+          Write-Host "Removing build-summary-${{ matrix.gfx_target }}.md..."
+          Remove-Item -Force "build-summary-${{ matrix.gfx_target }}.md"
         }
         
         Write-Host "Cleanup completed successfully"
 
-  create-release:
-    needs: build
+    create-release:
+    needs: [prepare-matrix, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -385,12 +409,57 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+        
     - name: Download build artifacts
+      run: |
+        TARGETS="${{ needs.prepare-matrix.outputs.gfx_targets }}"
+        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
+        
+        echo "Downloading artifacts for targets: $TARGETS"
+        echo "Llama.cpp commit hash: $LLAMACPP_COMMIT_HASH"
+        
+        # Convert comma-separated to space-separated for iteration
+        for target in $(echo $TARGETS | tr ',' ' '); do
+          artifact_name="llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64"
+          echo "Downloading artifact: $artifact_name"
+          
+          # Create directory for this target
+          mkdir -p "./build-artifacts-${target}"
+        done
+        
+    - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ${{ needs.build.outputs.artifact_name }}
-        path: ./build-artifacts
+        path: ./downloaded-artifacts
+        
+    - name: Organize artifacts
+      run: |
+        TARGETS="${{ needs.prepare-matrix.outputs.gfx_targets }}"
+        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
+        
+        ls -la ./downloaded-artifacts/
+        
+        # Convert comma-separated to space-separated for iteration
+        for target in $(echo $TARGETS | tr ',' ' '); do
+          artifact_name="llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64"
+          echo "Processing artifact: $artifact_name"
+          
+          if [ -d "./downloaded-artifacts/${artifact_name}" ]; then
+            # Move the contents to organized directory
+            mkdir -p "./build-artifacts-${target}"
+            cp -r ./downloaded-artifacts/${artifact_name}/* "./build-artifacts-${target}/"
+            
+            # Create zip archive for this target
+            cd "./build-artifacts-${target}"
+            zip -r "../${artifact_name}.zip" *
+            cd ..
+            
+            echo "Created archive: ${artifact_name}.zip"
+            ls -la "${artifact_name}.zip"
+          else
+            echo "Warning: Artifact directory not found: ${artifact_name}"
+          fi
+        done
         
     - name: Generate release tag
       id: generate-tag
@@ -418,40 +487,45 @@ jobs:
           echo "tag_exists=false" >> $GITHUB_OUTPUT
         fi
         
-    - name: Create archive of build artifacts
-      if: steps.check-tag.outputs.tag_exists == 'false'
-      run: |
-        ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
-        echo "Creating archive: ${ARTIFACT_NAME}.zip"
-        cd build-artifacts
-        zip -r "../${ARTIFACT_NAME}.zip" *
-        cd ..
-        ls -la *.zip
-        
     - name: Create Release
       if: steps.check-tag.outputs.tag_exists == 'false'
       env:
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         TAG="${{ steps.generate-tag.outputs.tag }}"
-        ARTIFACT_NAME="${{ needs.build.outputs.artifact_name }}"
+        TARGETS="${{ needs.prepare-matrix.outputs.gfx_targets }}"
         ROCM_VERSION="${{ needs.build.outputs.rocm_version }}"
+        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
         
         echo "Creating release with tag: $TAG"
-        echo "Artifact name: $ARTIFACT_NAME"
-        echo "GPU Target: ${{ needs.build.outputs.gfx_target }}"
+        echo "GPU Targets: $TARGETS"
         echo "ROCm Version: $ROCM_VERSION"
-        echo "Llama.cpp Commit: ${{ needs.build.outputs.llamacpp_commit_hash }}"
+        echo "Llama.cpp Commit: $LLAMACPP_COMMIT_HASH"
         
-        # Verify file exists
-        ls -la "${ARTIFACT_NAME}.zip"
+        # Prepare list of files to upload
+        FILES_TO_UPLOAD=""
+        # Convert comma-separated to space-separated for iteration
+        for target in $(echo $TARGETS | tr ',' ' '); do
+          artifact_name="llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64"
+          file_path="${artifact_name}.zip"
+          
+          if [ -f "$file_path" ]; then
+            FILES_TO_UPLOAD="$FILES_TO_UPLOAD $file_path"
+            echo "Will upload: $file_path"
+          else
+            echo "Warning: File not found: $file_path"
+          fi
+        done
+        
+        # Verify files exist
+        ls -la *.zip
         
         # Create release with GitHub CLI
         gh release create "$TAG" \
           --title "$TAG" \
-          --notes "**GPU Target(s)**: ${{ needs.build.outputs.gfx_target }}
+          --notes "**GPU Target(s)**: $TARGETS
         **ROCm Version**: ${{ needs.build.outputs.rocm_version }}
         **Llama.cpp Commit Hash**: ${{ needs.build.outputs.llamacpp_commit_hash }}
 
-        This release includes compiled llama.cpp binaries with ROCm support and all essential ROCm runtime DLL files for Windows." \
-          "${ARTIFACT_NAME}.zip"
+        This release includes compiled llama.cpp binaries with ROCm support and all essential ROCm runtime DLL files for Windows. Separate builds are provided for each GPU target." \
+          $FILES_TO_UPLOAD
