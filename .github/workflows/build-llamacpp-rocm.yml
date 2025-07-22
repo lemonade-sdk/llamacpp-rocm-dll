@@ -349,7 +349,7 @@ jobs:
       id: upload-artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: llama-${{ env.LLAMACPP_COMMIT_HASH }}-win-rocm-${{ matrix.gfx_target }}-x64
+        name: llama-win-rocm-${{ matrix.gfx_target }}-x64
         path: llama.cpp/build/bin/
         retention-days: 30
         
@@ -494,9 +494,10 @@ jobs:
       run: |
         # Parse targets from environment
         targets="${{ env.GFX_TARGETS }}"
-        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
+        TAG="${{ steps.generate-tag.outputs.tag }}"
         
         echo "Processing targets: $targets"
+        echo "Using release tag: $TAG"
         
         # Create individual archives for each target
         IFS=',' read -ra TARGET_ARRAY <<< "$targets"
@@ -504,13 +505,17 @@ jobs:
           target=$(echo "$target" | xargs) # trim whitespace
           echo "Processing target: $target"
           
-          artifact_name="llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64"
+          # Use simple artifact name to find the directory
+          artifact_name="llama-win-rocm-${target}-x64"
           artifact_dir="./all-artifacts/${artifact_name}"
           
+          # Create final archive with release tag
+          final_archive_name="llama-${TAG}-win-rocm-${target}-x64"
+          
           if [ -d "$artifact_dir" ]; then
-            echo "Creating archive: ${artifact_name}.zip"
+            echo "Creating archive: ${final_archive_name}.zip"
             cd "$artifact_dir"
-            zip -r "../../${artifact_name}.zip" *
+            zip -r "../../${final_archive_name}.zip" *
             cd ../../
           else
             echo "Warning: Artifact directory not found: $artifact_dir"
@@ -544,9 +549,9 @@ jobs:
         IFS=',' read -ra TARGET_ARRAY <<< "$targets"
         for target in "${TARGET_ARRAY[@]}"; do
           target=$(echo "$target" | xargs) # trim whitespace
-          artifact_name="llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64"
-          if [ -f "${artifact_name}.zip" ]; then
-            upload_files="${upload_files} ${artifact_name}.zip"
+          final_archive_name="llama-${TAG}-win-rocm-${target}-x64"
+          if [ -f "${final_archive_name}.zip" ]; then
+            upload_files="${upload_files} ${final_archive_name}.zip"
           fi
         done
         
@@ -554,15 +559,12 @@ jobs:
         
         # Create release with GitHub CLI
         gh release create "$TAG" \
-          --title "Llama.cpp + ROCm Build $TAG" \
+          --title "$TAG" \
           --notes "**Build Number**: $TAG
         **GPU Target(s)**: $targets
         **ROCm Version**: $ROCM_VERSION
         **Llama.cpp Commit Hash**: $LLAMACPP_COMMIT_HASH
         **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
-        This release includes compiled llama.cpp binaries with ROCm support for multiple GPU targets and all essential ROCm runtime DLL files for Windows.
-
-        ## Available Builds:
-        $(IFS=','; for target in ${TARGET_ARRAY[@]}; do target=$(echo "$target" | xargs); echo "- llama-${LLAMACPP_COMMIT_HASH}-win-rocm-${target}-x64.zip"; done)" \
+        This release includes compiled llama.cpp binaries with ROCm support for multiple GPU targets and all essential ROCm runtime DLL files for Windows." \
           $upload_files
