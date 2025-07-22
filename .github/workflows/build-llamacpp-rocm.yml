@@ -232,6 +232,21 @@ jobs:
       shell: cmd
       run: |
 
+        REM Map GPU targets
+        set "current_target=${{ matrix.gfx_target }}"
+        echo Input target: %current_target%
+        
+        if "%current_target%"=="gfx110X" (
+          set "mapped_target=gfx1100"
+        ) else if "%current_target%"=="gfx1151" (
+          set "mapped_target=gfx1151"
+        ) else if "%current_target%"=="gfx120X" (
+          set "mapped_target=gfx1200;gfx1201"
+        ) else (
+          set "mapped_target=%current_target%"
+        )
+        echo Mapped target: %mapped_target%
+
         REM Set up environment variables and PATH
         set HIP_PATH=C:\opt\rocm
         set HIP_PLATFORM=amd
@@ -253,7 +268,7 @@ jobs:
           -DCMAKE_CXX_COMPILER="C:\opt\rocm\lib\llvm\bin\clang++.exe" ^
           -DCMAKE_CROSSCOMPILING=ON ^
           -DCMAKE_BUILD_TYPE=Release ^
-          -DAMDGPU_TARGETS="${{ matrix.gfx_target }}" ^
+          -DAMDGPU_TARGETS="%mapped_target%" ^
           -DBUILD_SHARED_LIBS=ON ^
           -DLLAMA_BUILD_TESTS=OFF ^
           -DGGML_HIP=ON ^
