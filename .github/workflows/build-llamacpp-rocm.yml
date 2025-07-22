@@ -46,10 +46,12 @@ jobs:
         targets="${{ env.GFX_TARGETS }}"
         echo "Input targets: $targets"
         
-        # Convert comma-separated string to JSON array, handling spaces properly
+        # Generate compact JSON matrix
         matrix_json=$(echo "$targets" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/^"//;s/"$//' | jq -R . | jq -s .)
-        echo "matrix={\"gfx_target\":$matrix_json}" >> $GITHUB_OUTPUT
-        echo "Generated matrix: {\"gfx_target\":$matrix_json}"
+        matrix_output=$(jq -c --argjson arr "$matrix_json" '{gfx_target: $arr}')
+        
+        echo "matrix=$matrix_output" >> $GITHUB_OUTPUT
+        echo "Generated matrix: $matrix_output"
 
   build:
     runs-on: windows-latest
