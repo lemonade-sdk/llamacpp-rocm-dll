@@ -47,7 +47,7 @@ jobs:
         echo "Input targets: $targets"
         
         # Convert comma-separated string to JSON array, handling spaces properly
-        matrix_json=$(echo "$targets" | sed 's/,/\n/g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | jq -R . | jq -s .)
+        matrix_json=$(echo "$targets" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/^"//;s/"$//' | jq -R . | jq -s .)
         echo "matrix={\"gfx_target\":$matrix_json}" >> $GITHUB_OUTPUT
         echo "Generated matrix: {\"gfx_target\":$matrix_json}"
 
