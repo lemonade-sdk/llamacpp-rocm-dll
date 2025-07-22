@@ -417,12 +417,27 @@ jobs:
         
     - name: Generate release tag
       id: generate-tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        ROCM_VERSION="${{ needs.build.outputs.rocm_version }}"
-        LLAMACPP_COMMIT_HASH="${{ needs.build.outputs.llamacpp_commit_hash }}"
+        # Get all existing release tags that match the pattern b####
+        existing_tags=$(gh release list --limit 1000 --json tagName --jq '.[].tagName' | grep -E '^b[0-9]{4}$' | sort -V || echo "")
         
-        # Create a clean tag with commit hash
-        TAG="${LLAMACPP_COMMIT_HASH}-${ROCM_VERSION}"
+        if [ -z "$existing_tags" ]; then
+          # No existing sequential tags found, start with b1000
+          next_number=1000
+          echo "No existing sequential release tags found, starting with b1000"
+        else
+          # Find the highest existing number
+          highest_tag=$(echo "$existing_tags" | tail -n 1)
+          highest_number=$(echo "$highest_tag" | sed 's/^b//')
+          next_number=$((highest_number + 1))
+          echo "Highest existing tag: $highest_tag (number: $highest_number)"
+          echo "Next number will be: $next_number"
+        fi
+        
+        # Format as b#### (4-digit number with leading zeros)
+        TAG=$(printf "b%04d" $next_number)
         
         echo "tag=${TAG}" >> $GITHUB_OUTPUT
         echo "Generated release tag: ${TAG}"
@@ -506,10 +521,12 @@ jobs:
         
         # Create release with GitHub CLI
         gh release create "$TAG" \
-          --title "$TAG" \
-          --notes "**GPU Target(s)**: $targets
+          --title "Llama.cpp + ROCm Build $TAG" \
+          --notes "**Build Number**: $TAG
+        **GPU Target(s)**: $targets
         **ROCm Version**: $ROCM_VERSION
         **Llama.cpp Commit Hash**: $LLAMACPP_COMMIT_HASH
+        **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
         This release includes compiled llama.cpp binaries with ROCm support for multiple GPU targets and all essential ROCm runtime DLL files for Windows.
 
