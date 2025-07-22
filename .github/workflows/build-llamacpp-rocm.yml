@@ -143,25 +143,40 @@ jobs:
         $rocmVersion = "${{ env.ROCM_VERSION }}"
         $currentTarget = "${{ matrix.gfx_target }}"
         
+        # Add -dgpu suffix for gfx120X and gfx110X targets
+        $s3Target = $currentTarget
+        if ($currentTarget -eq "gfx120X" -or $currentTarget -eq "gfx110X") {
+          $s3Target = "$currentTarget-dgpu"
+          Write-Host "Using S3 target with -dgpu suffix: $s3Target"
+        }
+        
         if ($rocmVersion -eq "latest") {
           Write-Host "Auto-detecting latest ROCm version for target: $currentTarget"
-          $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-$currentTarget-").Content
+          $s3Response = (Invoke-WebRequest "https://therock-nightly-tarball.s3.amazonaws.com/?prefix=therock-dist-windows-$s3Target-").Content
           $latestFile = $s3Response -split '<Key>' | Where-Object {$_ -match '</Key>'} | ForEach-Object { ($_ -split '</Key>')[0] } | Sort-Object | Select-Object -Last 1
           
-          if ($latestFile -match "therock-dist-windows-$currentTarget-.*?(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
+          Write-Host "Found latest file: $latestFile"
+          
+          # Extract version from the filename for environment variable
+          if ($latestFile -match "therock-dist-windows-$s3Target-.*?(\d+\.\d+\.\d+rc\d+)\.tar\.gz") {
             $rocmVersion = $matches[1]
             Write-Host "Detected latest ROCm version: $rocmVersion"
           } else {
             Write-Error "Failed to extract ROCm version from latest file: $latestFile"
-            Write-Error "Expected pattern: therock-dist-windows-$currentTarget-*<version>.tar.gz"
+            Write-Error "Expected pattern: therock-dist-windows-$s3Target-*<version>.tar.gz"
             exit 1
           }
+          
+          # Use the exact filename from S3 instead of reconstructing
+          $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/$latestFile"
+        } else {
+          # For specific versions, construct the URL as before
+          $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-$s3Target-$rocmVersion.tar.gz"
         }
         
         # Store the version for use in other steps
         echo "DETECTED_ROCM_VERSION=$rocmVersion" >> $env:GITHUB_ENV
         
-        $rocmUrl = "https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-$currentTarget-$rocmVersion.tar.gz"
         Write-Host "Downloading ROCm from: $rocmUrl"
         Invoke-WebRequest -Uri $rocmUrl -OutFile "rocm.tar.gz"
         
