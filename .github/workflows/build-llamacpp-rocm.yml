@@ -44,8 +44,10 @@ jobs:
       run: |
         # Parse comma-separated targets and create matrix
         targets="${{ env.GFX_TARGETS }}"
-        # Convert comma-separated string to JSON array
-        matrix_json=$(echo "$targets" | tr ',' '\n' | jq -R . | jq -s .)
+        echo "Input targets: $targets"
+        
+        # Convert comma-separated string to JSON array, handling spaces properly
+        matrix_json=$(echo "$targets" | sed 's/,/\n/g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | jq -R . | jq -s .)
         echo "matrix={\"gfx_target\":$matrix_json}" >> $GITHUB_OUTPUT
         echo "Generated matrix: {\"gfx_target\":$matrix_json}"
 
