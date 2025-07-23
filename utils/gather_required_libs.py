@@ -39,12 +39,7 @@ def main():
 
     # Create the destination directory and run the binary
     os.makedirs(dest_dir, exist_ok=True)
-
-    # Set environment variable to skip device check when running binary
-    env = os.environ.copy()
-    env["SKIP_GGML_DEVICE_CHECK"] = "1"
-
-    result = subprocess.run([binary], capture_output=True, text=True, env=env)
+    result = subprocess.run([binary], capture_output=True, text=True)
     print(f"Error Found: {result.stderr}")
 
     # Copy the missing libraries to the destination directory
@@ -53,7 +48,7 @@ def main():
         so_file_path = find_lib_in_rocm(so_file, rocm_dir)
         shutil.copy2(so_file_path, dest_dir)
         print(f"Copied {so_file_path} -> {dest_dir}")
-        result = subprocess.run([binary], capture_output=True, text=True, env=env)
+        result = subprocess.run([binary], capture_output=True, text=True)
         print(f"Error Found: {result.stderr}")
 
 

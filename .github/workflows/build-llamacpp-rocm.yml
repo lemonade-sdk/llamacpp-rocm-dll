@@ -615,25 +615,6 @@ jobs:
           echo "Warning: $hip_file not found"
         fi
         
-    - name: Update CUDA initialization function
-      run: |
-        cd llama.cpp
-        cuda_file="ggml/src/ggml-cuda/ggml-cuda.cu"
-        if [ -f "$cuda_file" ]; then
-          # Add skip check after the function declaration
-          # This allows us to dynamically check the missing libs without having a compatible device
-          sed -i '/static ggml_cuda_device_info ggml_cuda_init() {/a\
-        // Skip CUDA initialization if environment variable is set\
-        if (getenv("SKIP_GGML_DEVICE_CHECK") != nullptr) {\
-            GGML_LOG_INFO("%s: CUDA initialization skipped due to SKIP_GGML_DEVICE_CHECK\\n", __func__);\
-            ggml_cuda_device_info info = {};\
-            return info;\
-        }' "$cuda_file"
-          echo "Updated CUDA initialization function in $cuda_file"
-        else
-          echo "Warning: $cuda_file not found"
-        fi
-        
     - name: Build Llama.cpp + ROCm
       run: |
         # Map GPU targets
@@ -699,12 +680,31 @@ jobs:
           echo "Warning: rocblas/library folder not found at: $rocblas_lib_path"
         fi
  
-        # Search for all missing libraries and copy them to the build directory
-        chmod +x utils/gather_required_libs.py
-        echo "Running utils/gather_required_libs.py to collect any missing libraries..."
-        python3 utils/gather_required_libs.py --rocm-dir /opt/rocm --dest-dir "$build_bin_path"
+        # Copy required ROCm libraries to build directory
+        # If artifacts from ROCm or Llama.cpp change, you may need to update this list
+        # To get a new list of all libraries, run:
+        # gather_required_libs.py --rocm-dir /opt/rocm --dest-dir llama.cpp/build/bin
+        echo "Copying required ROCm libraries to build directory..."
+        cp -v /opt/rocm/lib/libhipblas.so* "$build_bin_path/" 2>/dev/null || echo "libhipblas.so* not found"
+        cp -v /opt/rocm/lib/librocblas.so* "$build_bin_path/" 2>/dev/null || echo "librocblas.so* not found"
+        cp -v /opt/rocm/lib/libamdhip64.so* "$build_bin_path/" 2>/dev/null || echo "libamdhip64.so* not found"
+        cp -v /opt/rocm/lib/librocsolver.so* "$build_bin_path/" 2>/dev/null || echo "librocsolver.so* not found"
+        cp -v /opt/rocm/lib/libroctx64.so* "$build_bin_path/" 2>/dev/null || echo "libroctx64.so* not found"
+        cp -v /opt/rocm/lib/libhipblaslt.so* "$build_bin_path/" 2>/dev/null || echo "libhipblaslt.so* not found"
+        cp -v /opt/rocm/lib/librocprofiler-register.so* "$build_bin_path/" 2>/dev/null || echo "librocprofiler-register.so* not found"
+        cp -v /opt/rocm/lib/libamd_comgr.so* "$build_bin_path/" 2>/dev/null || echo "libamd_comgr.so* not found"
+        cp -v /opt/rocm/lib/libhsa-runtime64.so* "$build_bin_path/" 2>/dev/null || echo "libhsa-runtime64.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_numa.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_numa.so* not found"
+        cp -v /opt/rocm/lib/librocroller.so* "$build_bin_path/" 2>/dev/null || echo "librocroller.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_z.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_z.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_zstd.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_zstd.so* not found"
+        cp -v /opt/rocm/lib/llvm/lib/libLLVM.so* "$build_bin_path/" 2>/dev/null || echo "libLLVM.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_elf.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_elf.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_drm.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_drm.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_drm_amdgpu.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_drm_amdgpu.so* not found"
+        cp -v /opt/rocm/lib/rocm_sysdeps/lib/librocm_sysdeps_bz2.so* "$build_bin_path/" 2>/dev/null || echo "librocm_sysdeps_bz2.so* not found"
 
-        echo "Finished gathering required libraries"
+        echo "Finished copying required ROCm libraries"
         
     - name: List build artifacts (including ROCm files)
       run: |
