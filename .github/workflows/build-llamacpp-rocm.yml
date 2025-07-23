@@ -251,6 +251,13 @@ jobs:
         set HIP_PATH=C:\opt\rocm
         set HIP_PLATFORM=amd
         set PATH=%HIP_PATH%\lib\llvm\bin;%HIP_PATH%\bin;%PATH%
+        
+        REM Set HIP_VISIBLE_DEVICES=1 for gfx120X or gfx110X targets
+        if "%current_target%"=="gfx120X" set HIP_VISIBLE_DEVICES=1
+        if "%current_target%"=="gfx110X" set HIP_VISIBLE_DEVICES=1
+        
+        REM Set ROCBLAS_USE_HIPBLASLT=1 for gfx1151 target
+        if "%current_target%"=="gfx1151" set ROCBLAS_USE_HIPBLASLT=1
 
         REM Set up x64 Native Tools Command Prompt environment
         call "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vs_path.txt
