@@ -1,4 +1,4 @@
-# Manual Build Instructions
+# 🔧 Manual Build Instructions
 
 > **⚠️ Important Notice**
 > 
@@ -9,10 +9,10 @@
 ---
 
 Choose your operating system:
-- [Windows Build Instructions](#windows-build-instructions)
-- [Ubuntu Build Instructions](#ubuntu-build-instructions)
+- [🪟 Windows Build Instructions](#windows-build-instructions)
+- [🐧 Ubuntu Build Instructions](#ubuntu-build-instructions)
 
-## Windows Build Instructions
+## 🪟 Windows Build Instructions
 
 If you prefer to build locally on Windows, follow these steps:
 
@@ -32,17 +32,12 @@ I used chocolatey, but you can also install those manually.
 ### Part 2: Organizing artifacts
 * Step 1: Get the latest run id from main [here](https://github.com/ROCm/TheRock/actions/workflows/release_windows_packages.yml).
   * Example: [TheRock/actions/runs/16218534118/job/45793425858](https://github.com/ROCm/TheRock/actions/runs/16218534118/job/45793425858)
-* Step 2:
-Look at the upload logs for `gfx1151`. This is what I see:
+* Step 2: Look at the upload logs for your target GPU (e.g., `gfx1151`), and note the Windows URL:
   ```
   ://therock-nightly-tarball/therock-dist-windows-gfx1151-7.0.0rc20250711.tar.gz
-  ://therock-nightly-python/v2/gfx1151/rocm-7.0.0rc20250711.tar.gz
-  ://therock-nightly-python/v2/gfx1151/rocm_sdk_libraries_gfx1151-7.0.0rc20250711-py3-none-win_amd64.whl
-  ://therock-nightly-python/v2/gfx1151/rocm_sdk_devel-7.0.0rc20250711-py3-none-win_amd64.whl
-  ://therock-nightly-python/v2/gfx1151/rocm_sdk_core-7.0.0rc20250711-py3-none-win_amd64.whl
   ```
 * Step 4: Download the nightly tarball 
-  * Example: [therock-nightly-tarball.s3.amazonaws.com/YOUR_FILE](https://therock-nightly-tarball.s3.amazonaws.com/therock-dist-windows-gfx1151-7.0.0rc20250711.tar.gz)
+  * Example: `therock-nightly-tarball.s3.amazonaws.com/YOUR_FILE`
 * Step 5: Extract the contents of this tar.gz file to `C:\opt\rocm`
 * Setp 6: Add `C:\opt\rocm\lib\llvm\bin` to path
 * Step 7: clone llamacpp
@@ -66,11 +61,13 @@ cmake .. -G Ninja -DCMAKE_C_COMPILER="C:\opt\rocm\lib\llvm\bin\clang.exe" -DCMAK
 cmake --build . -j 24 2>&1 | findstr /i "error"
 ```
 
+> **Note**: Adjust the `-DAMDGPU_TARGETS="gfx1151"` parameter for your specific GPU. See the [GPU Target Reference](#gpu-target-reference) section for details.
+
 If you see no errors, that means that llama.cpp has correctly been built and files are available inside your `build\bin` folder. 
 
 ---
 
-## Ubuntu Build Instructions
+## 🐧 Ubuntu Build Instructions
 
 If you prefer to build locally on Ubuntu, follow these steps:
 
@@ -140,7 +137,7 @@ cd llama.cpp
 mkdir build
 cd build
 
-# Configure the project (adjust DAMDGPU_TARGETS for your GPU)
+# Configure the project
 cmake .. -G Ninja \
   -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
   -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
@@ -162,6 +159,8 @@ cmake .. -G Ninja \
 # Build the project (adjust -j value based on your CPU cores)
 cmake --build . -j $(nproc)
 ```
+
+> **Note**: Adjust the `-DAMDGPU_TARGETS="gfx1151"` parameter for your specific GPU. See the [GPU Target Reference](#gpu-target-reference) section for details.
 
 ### Part 5: Copy required ROCm libraries
 
@@ -187,10 +186,29 @@ cp -r /opt/rocm/lib/rocblas/library rocblas/
 
 If you see no errors during the build process, llama.cpp has been successfully compiled and all files are available in your `build/bin` folder.
 
-### Common GPU Targets
+---
 
-When configuring cmake, adjust the `DAMDGPU_TARGETS` parameter based on your GPU:
-- For RX 7900 series: `gfx1100`
-- For RX 7800/7700 series: `gfx1151` 
-- For RX 7600 series: `gfx1151`
-- For multiple targets: `gfx1100,gfx1151`
+## 🎯 GPU Target Reference
+
+When building llama.cpp with ROCm, the `-DAMDGPU_TARGETS` parameter must be set based on your specific GPU architecture. Our automated workflow uses generic targets that get mapped to specific architectures:
+
+- **`gfx120X`** maps to `gfx1200,gfx1201` (RDNA 3 series like RX 7900 XT/XTX)
+- **`gfx110X`** maps to `gfx1100` (RDNA 2 series like RX 6000 series)  
+- **`gfx1151`** remains as `gfx1151` (specific for RX 7600/7700 XT)
+
+For a complete list of GPU targets and their mappings, see the [automated workflow](../.github/workflows/build-llamacpp-rocm.yml).
+
+### How to Use
+
+Replace the `-DAMDGPU_TARGETS="gfx1151"` parameter in your cmake command with the appropriate target for your GPU:
+
+```bash
+# For RDNA 3 series (RX 7900 XT/XTX)
+-DAMDGPU_TARGETS="gfx1200,gfx1201"
+
+# For RDNA 2 series (RX 6000 series) 
+-DAMDGPU_TARGETS="gfx1100"
+
+# For RX 7600/7700 XT
+-DAMDGPU_TARGETS="gfx1151"
+```
