@@ -40,6 +40,7 @@ def main():
     # Create the destination directory and run the binary
     os.makedirs(dest_dir, exist_ok=True)
     result = subprocess.run([binary], capture_output=True, text=True)
+    print(f"Error Found: {result.stderr}")
 
     # Copy the missing libraries to the destination directory
     while "error while loading shared libraries" in result.stderr:
@@ -48,6 +49,7 @@ def main():
         shutil.copy2(so_file_path, dest_dir)
         print(f"Copied {so_file_path} -> {dest_dir}")
         result = subprocess.run([binary], capture_output=True, text=True)
+        print(f"Error Found: {result.stderr}")
 
 
 if __name__ == "__main__":
