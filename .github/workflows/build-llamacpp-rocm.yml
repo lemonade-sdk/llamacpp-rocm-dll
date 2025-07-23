@@ -659,43 +659,33 @@ jobs:
         # Build the project
         cmake --build . -j $(nproc)
         
-    - name: Copy ROCm libraries to build directory
-      if: false  # Skipped for now while we figure out whether all files are really needed.
+    - name: Copy ROCm core libs to build directory
       run: |
-        rocm_version="${DETECTED_ROCM_VERSION:-${{ env.ROCM_VERSION }}}"
         build_bin_path="llama.cpp/build/bin"
+        rocm_bin_path="/opt/rocm/bin"
         
-        echo "Copying ROCm library files to build directory..."
-        echo "Destination: $build_bin_path"
-        
-        # Copy all files from /opt/rocm/lib/* (not recursive)
-        if [ -d "/opt/rocm/lib" ]; then
-          echo "Copying files from /opt/rocm/lib/*..."
-          find /opt/rocm/lib -maxdepth 1 -type f -exec cp {} "$build_bin_path/" \;
-          echo "Copied files from /opt/rocm/lib/"
+        # Copy the rocblas/library folder and all its contents
+        rocblas_lib_path="/opt/rocm/lib/rocblas/library"
+        if [ -d "$rocblas_lib_path" ]; then
+          echo "Copying rocblas/library folder and all contents..."
+          dest_rocblas_path="$build_bin_path/rocblas/library"
+          mkdir -p "$(dirname "$dest_rocblas_path")"
+          cp -r "$rocblas_lib_path" "$(dirname "$dest_rocblas_path")/"
+          echo "Copied: rocblas/library folder with all contents"
+          
+          # List the contents of the copied rocblas/library folder
+          echo "Contents of rocblas/library:"
+          find "$dest_rocblas_path" -type f -exec ls -la {} \; | head -20
         else
-          echo "Warning: /opt/rocm/lib directory not found"
+          echo "Warning: rocblas/library folder not found at: $rocblas_lib_path"
         fi
-        
-        # Copy all files from /opt/rocm/lib/rocm_sysdeps/lib/* (not recursive)
-        if [ -d "/opt/rocm/lib/rocm_sysdeps/lib" ]; then
-          echo "Copying files from /opt/rocm/lib/rocm_sysdeps/lib/*..."
-          find /opt/rocm/lib/rocm_sysdeps/lib -maxdepth 1 -type f -exec cp {} "$build_bin_path/" \;
-          echo "Copied files from /opt/rocm/lib/rocm_sysdeps/lib/"
-        else
-          echo "Warning: /opt/rocm/lib/rocm_sysdeps/lib directory not found"
-        fi
-        
-        # Copy all files from /opt/rocm/lib/llvm/lib/* (not recursive)
-        if [ -d "/opt/rocm/lib/llvm/lib" ]; then
-          echo "Copying files from /opt/rocm/lib/llvm/lib/*..."
-          find /opt/rocm/lib/llvm/lib -maxdepth 1 -type f -exec cp {} "$build_bin_path/" \;
-          echo "Copied files from /opt/rocm/lib/llvm/lib/"
-        else
-          echo "Warning: /opt/rocm/lib/llvm/lib directory not found"
-        fi
-        
-        echo "ROCm library files successfully copied to build directory"
+ 
+        # Search for all missing libraries and copy them to the build directory
+        chmod +x utils/gather_required_libs.py
+        echo "Running utils/gather_required_libs.py to collect any missing libraries..."
+        python3 utils/gather_required_libs.py --rocm-dir /opt/rocm --dest-dir "$build_bin_path"
+
+        echo "Finished gathering required libraries"
         
     - name: List build artifacts (including ROCm files)
       run: |
