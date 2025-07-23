@@ -15,7 +15,7 @@ on:
         required: false
         default: 'latest'
       llamacpp_version:
-        description: 'Llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for main branch'
+        description: 'Llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for master branch'
         required: false
         default: 'latest'
       create_release:
@@ -226,8 +226,8 @@ jobs:
         # Checkout specified version
         $llamacppVersion = "${{ env.LLAMACPP_VERSION }}"
         if ($llamacppVersion -eq "latest") {
-          Write-Host "Checking out main branch (latest)"
-          git checkout main
+          Write-Host "Checking out master branch (latest)"
+          git checkout master
         } else {
           Write-Host "Checking out llama.cpp version: $llamacppVersion"
           git checkout $llamacppVersion
@@ -588,8 +588,8 @@ jobs:
         # Checkout specified version
         llamacpp_version="${{ env.LLAMACPP_VERSION }}"
         if [ "$llamacpp_version" = "latest" ]; then
-          echo "Checking out main branch (latest)"
-          git checkout main
+          echo "Checking out master branch (latest)"
+          git checkout master
         else
           echo "Checking out llama.cpp version: $llamacpp_version"
           git checkout "$llamacpp_version"
