@@ -661,7 +661,7 @@ jobs:
         
     - name: Copy ROCm libraries to build directory
       if: false  # Skipped for now while we figure out whether all files are really needed.
-      run: echo "Skipping ROCm library copy step for now"
+      run: |
         rocm_version="${DETECTED_ROCM_VERSION:-${{ env.ROCM_VERSION }}}"
         build_bin_path="llama.cpp/build/bin"
         
