@@ -12,14 +12,14 @@
 <a href="https://github.com/ROCm/ROCm" title="Powered by ROCm 7.0">
   <img src="https://img.shields.io/badge/ROCm-7.0-blue?logo=amd&logoColor=white" alt="ROCm 7.0" />
 </a>
+<a href="https://github.com/ggerganov/llama.cpp" title="Powered by llama.cpp">
+  <img src="https://img.shields.io/badge/🦙Powered%20by-llama.cpp-blue?logo=llama&logoColor=white" alt="Powered by llama.cpp" />
+</a>
 <a href="#-supported-devices" title="Platform support">
   <img src="https://img.shields.io/badge/OS-Windows%20%7C%20Ubuntu-0078D6?logo=windows&logoColor=white" alt="Platform: Windows | Ubuntu" />
 </a>
 <a href="#-supported-devices" title="GPU targets">
   <img src="https://img.shields.io/badge/GPU-gfx110X%20%7C%20gfx1151%20%7C%20gfx120X-00B04F?logo=amd&logoColor=white" alt="GPU Targets" />
-</a>
-<a href="https://github.com/ggerganov/llama.cpp" title="Powered by llama.cpp">
-  <img src="https://img.shields.io/badge/🦙Powered%20by-llama.cpp-4A90E2?logo=llama&logoColor=white" alt="Powered by llama.cpp" />
 </a>
 
 
