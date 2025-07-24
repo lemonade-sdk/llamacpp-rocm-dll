@@ -328,7 +328,8 @@ jobs:
             "amd_comgr*.dll", 
             "libhipblas.dll",
             "rocblas.dll",
-            "rocsolver.dll"
+            "rocsolver.dll",
+            "hipblaslt.dll"
           )
           
           foreach ($pattern in $filesToCopy) {
