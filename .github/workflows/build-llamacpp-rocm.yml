@@ -38,7 +38,7 @@ env:
 
 jobs:
   prepare-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       windows_matrix: ${{ steps.set-matrix.outputs.windows_matrix }}
       ubuntu_matrix: ${{ steps.set-matrix.outputs.ubuntu_matrix }}
@@ -455,7 +455,7 @@ jobs:
         Write-Host "Cleanup completed successfully"
 
   build-ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: prepare-matrix
     if: needs.prepare-matrix.outputs.should_build_ubuntu == 'true'
     strategy:
@@ -794,7 +794,7 @@ jobs:
 
   create-release:
     needs: [prepare-matrix, build-windows, build-ubuntu]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       pull-requests: write
