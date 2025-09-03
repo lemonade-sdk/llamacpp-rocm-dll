@@ -617,6 +617,63 @@ jobs:
           echo "Warning: $hip_file not found"
         fi
 
+    - name: Fix Windows-specific code for Linux build
+      run: |
+        cd llama.dll
+        
+        # Add platform guards to dllmain.cpp if it exists
+        dllmain_file="tools/server/dllmain.cpp"
+        if [ -f "$dllmain_file" ]; then
+          echo "Adding platform guards to $dllmain_file"
+          # Create a backup
+          cp "$dllmain_file" "$dllmain_file.bak"
+          
+          # Add platform guard at the beginning
+          {
+            echo "#ifdef _WIN32"
+            cat "$dllmain_file.bak"
+            echo ""
+            echo "#endif // _WIN32"
+          } > "$dllmain_file"
+          echo "Added platform guards to $dllmain_file"
+        else
+          echo "Warning: $dllmain_file not found"
+        fi
+        
+        # Fix server_amd.hpp to handle __declspec on non-Windows platforms
+        server_amd_file="tools/server/server_amd.hpp"
+        if [ -f "$server_amd_file" ]; then
+          echo "Patching $server_amd_file for cross-platform compatibility"
+          # Add cross-platform DllExport definition at the top
+          temp_file=$(mktemp)
+          {
+            echo "#ifndef _WIN32"
+            echo "#define DllExport __attribute__((visibility(\"default\")))"
+            echo "#endif"
+            echo ""
+            cat "$server_amd_file"
+          } > "$temp_file"
+          mv "$temp_file" "$server_amd_file"
+          echo "Patched $server_amd_file"
+        else
+          echo "Warning: $server_amd_file not found"
+        fi
+        
+        # Check for other files that might need Windows.h and patch them
+        find tools/server -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | while read -r file; do
+          if grep -q "Windows\.h" "$file" 2>/dev/null; then
+            echo "Found Windows.h include in $file, adding platform guard"
+            temp_file=$(mktemp)
+            {
+              echo "#ifdef _WIN32"
+              cat "$file"
+              echo ""
+              echo "#endif // _WIN32"
+            } > "$temp_file"
+            mv "$temp_file" "$file"
+          fi
+        done
+
     - name: Build Llama.dll + ROCm
       run: |
         # Map GPU targets
@@ -646,6 +703,7 @@ jobs:
           -DCMAKE_CROSSCOMPILING=ON \
           -DCMAKE_BUILD_TYPE=Release \
           -DAMDGPU_TARGETS="$mapped_target" \
+          -DAMD_CHAT_SERVER_DLL=ON \
           -DBUILD_SHARED_LIBS=ON \
           -DLLAMA_BUILD_TESTS=OFF \
           -DGGML_HIP=ON \
@@ -656,7 +714,9 @@ jobs:
           -DLLAMA_CURL=OFF \
           -DGGML_NATIVE=OFF \
           -DGGML_STATIC=OFF \
-          -DCMAKE_SYSTEM_NAME=Linux
+          -DCMAKE_SYSTEM_NAME=Linux \
+          -DCMAKE_C_FLAGS="-fms-extensions" \
+          -DCMAKE_CXX_FLAGS="-fms-extensions"
 
         # Build the project
         cmake --build . -j $(nproc)
