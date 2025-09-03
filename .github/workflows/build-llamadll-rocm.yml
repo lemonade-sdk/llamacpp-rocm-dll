@@ -220,7 +220,7 @@ jobs:
         
     - name: Clone llama.dll
       run: |
-        git clone https://github.com/ggerganov/llama.dll.git
+        git clone https://github.com/lemonade-sdk/llama.dll.git
         cd llama.dll
         
         # Checkout specified version
