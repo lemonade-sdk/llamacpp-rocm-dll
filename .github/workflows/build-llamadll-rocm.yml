@@ -1,4 +1,4 @@
-name: Build Llama.cpp + ROCm
+name: Build Llama.dll + ROCm
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +15,7 @@ on:
         required: false
         default: 'latest'
       llamacpp_version:
-        description: 'Llama.cpp version (e.g., tag, branch, or commit hash) or "latest" for master branch'
+        description: 'Llama.dll version (e.g., tag, branch, or commit hash) or "latest" for master branch'
         required: false
         default: 'latest'
       create_release:
@@ -255,7 +255,7 @@ jobs:
           Write-Host "Warning: $hipFile not found"
         }
         
-    - name: Build Llama.cpp + ROCm
+    - name: Build Llama.dll + ROCm
       shell: cmd
       run: |
 
@@ -401,7 +401,7 @@ jobs:
     - name: Create release summary
       run: |
         $summary = @"
-        # Llama.cpp + ROCm Build Summary (Windows - ${{ matrix.gfx_target }})
+        # Llama.dll + ROCm Build Summary (Windows - ${{ matrix.gfx_target }})
         
         ## Build Configuration
         - **GPU Target**: ${{ matrix.gfx_target }}
@@ -616,8 +616,8 @@ jobs:
         else
           echo "Warning: $hip_file not found"
         fi
-        
-    - name: Build Llama.cpp + ROCm
+
+    - name: Build Llama.dll + ROCm
       run: |
         # Map GPU targets
         current_target="${{ matrix.gfx_target }}"
@@ -683,7 +683,7 @@ jobs:
         fi
  
         # Copy required ROCm libraries to build directory
-        # If artifacts from ROCm or Llama.cpp change, you may need to update this list
+        # If artifacts from ROCm or Llama.dll change, you may need to update this list
         # To get a new list of all libraries, run:
         # gather_required_libs.py --rocm-dir /opt/rocm --dest-dir llama.dll/build/bin
         echo "Copying required ROCm libraries to build directory..."
@@ -741,8 +741,8 @@ jobs:
     - name: Create release summary
       run: |
         cat > "build-summary-ubuntu-${{ matrix.gfx_target }}.md" << 'EOF'
-        # Llama.cpp + ROCm Build Summary (Ubuntu - ${{ matrix.gfx_target }})
-        
+        # Llama.dll + ROCm Build Summary (Ubuntu - ${{ matrix.gfx_target }})
+
         ## Build Configuration
         - **GPU Target**: ${{ matrix.gfx_target }}
         - **ROCm Version**: ${{ env.DETECTED_ROCM_VERSION || env.ROCM_VERSION }}
@@ -917,8 +917,8 @@ jobs:
         echo "GPU Targets: $targets"
         echo "Operating Systems: $operating_systems"
         echo "ROCm Version: $ROCM_VERSION"
-        echo "Llama.cpp Commit: $LLAMACPP_COMMIT_HASH"
-        
+        echo "Llama.dll Commit: $LLAMACPP_COMMIT_HASH"
+
         # Verify archives exist
         ls -la *.zip
         
@@ -947,7 +947,7 @@ jobs:
         **Operating System(s)**: $operating_systems
         **GPU Target(s)**: $targets
         **ROCm Version**: $ROCM_VERSION
-        **Llama.cpp Commit Hash**: $LLAMACPP_COMMIT_HASH
+        **Llama.dll Commit Hash**: $LLAMACPP_COMMIT_HASH
         **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
         This release includes compiled llama.dll binaries with ROCm support for multiple GPU targets and operating systems, with all essential ROCm runtime libraries included." \
